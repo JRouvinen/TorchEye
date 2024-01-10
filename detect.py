@@ -10,6 +10,7 @@ from __future__ import division
 import os
 import argparse
 import datetime
+import time
 
 import cv2
 import tqdm
@@ -70,9 +71,10 @@ def detect_directory(model_path, weights_path, img_path, classes, output_path, g
         dataloader,
         output_path,
         conf_thres,
-        nms_thres)
-    if draw != 0:
-        _draw_and_save_output_images(
+        nms_thres,
+        gpu)
+    #if draw != 0:
+    _draw_and_save_output_images(
             img_detections, imgs, img_size, output_path, classes, date, draw)
 
     print(f"---- Detections were saved to: '{output_path}' ----")
@@ -176,7 +178,7 @@ def detect_images(model, images, img_size=640, conf_thres=0.5,nms_thres=0.5):
     #imgs.extend(img_paths)
     return img_detections, imgs
     '''
-def detect(model, dataloader, output_path, conf_thres, nms_thres):
+def detect(model, dataloader, output_path, conf_thres, nms_thres,gpu):
     """Inferences images with model.
 
     :param model: Model for inference
@@ -200,7 +202,12 @@ def detect(model, dataloader, output_path, conf_thres, nms_thres):
 
     model.eval()  # Set model to evaluation mode
 
-    Tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
+    #Old implementation -> caused RuntimeError: Input type (torch.cuda.FloatTensor) and weight type (torch.FloatTensor) should be the same if user wanted to use cpu in machine with cuda gpu
+    #Tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
+    if gpu != -1 and torch.cuda.is_available():
+        Tensor = torch.cuda.FloatTensor
+    else:
+        Tensor = torch.FloatTensor
 
     img_detections = []  # Stores detections for each image index
     imgs = []  # Stores image paths
@@ -237,7 +244,8 @@ def _draw_and_save_output_images(img_detections, imgs, img_size, output_path, cl
 
     # Iterate through images and save plot of detections
     for (image_path, detections) in zip(imgs, img_detections):
-        print(f"Image {image_path}:")
+        if draw != 0:
+            print(f"Image {image_path}:")
         log_file_writer(f"Image {image_path}:", "output/" + date + "_detect" + ".txt")
         _draw_and_save_output_image(
             image_path, detections, img_size, output_path, classes, date, draw)
@@ -266,8 +274,7 @@ def _draw_and_save_output_image(image_path, detections, img_size, output_path, c
         unique_labels = detections[:, -1].cpu().unique()
         n_cls_preds = len(unique_labels)
         for x1, y1, x2, y2, conf, cls_pred in detections:
-
-            print(f"\t+ Label: {classes[int(cls_pred)]} | Confidence: {conf.item():0.4f}")
+            #print(f"\t+ Label: {classes[int(cls_pred)]} | Confidence: {conf.item():0.4f}")
             log_file_writer(f"\t+ Label: {classes[int(cls_pred)]} | Confidence: {conf.item():0.4f}", "output/" + date + "_detect" + ".txt")
     else:
         # Create plot
@@ -401,6 +408,7 @@ def _create_data_loader(img_path, batch_size, img_size, n_cpu):
 @profile(filename='./logs/profiles/detect.prof', stdout=False)
 
 def run():
+
     date = datetime.datetime.now().strftime("%Y_%m_%d__%H_%M_%S")
     ver = "0.2.1"
     print_environment_info(ver, "output/" + date + "_detect" + ".txt")
@@ -450,4 +458,16 @@ def run():
 
 
 if __name__ == '__main__':
+    # Start timer
+    start_time = time.time()
+
+    # Code to be timed
+    # ...
     run()
+
+    # End timer
+    end_time = time.time()
+
+    # Calculate elapsed time
+    elapsed_time = end_time - start_time
+    print("Elapsed time: ", elapsed_time)
