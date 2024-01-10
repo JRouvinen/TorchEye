@@ -17,19 +17,20 @@ import torch.nn as nn
 from torch.autograd import Variable
 import numpy as np
 import cv2
-from utils.utils import *
-from models import Darknet
+
+from utils.parse_config import parse_hyp_config
+from utils.video_utils import *
+from models import Darknet, load_model
 from utils.preprocess import prep_image, inp_to_image, letterbox_image
 import pandas as pd
 import random
 import pickle as pkl
 import argparse
 from detect import detect_image, draw_and_save_return_image
-from profilehooks import profile
 
 # YOLO configuration
 
-ver = "0.3"
+ver = "0.2"
 colors = [
         (0, 0, 255),  # Red
         (0, 255, 0),  # Green
@@ -116,7 +117,7 @@ def prep_image(img, inp_dim):
 def assign_colors_to_classes(num_classes, color_list):
     class_colors = {}
     for i in range(num_classes):
-        class_index = i #% len(color_list)
+        class_index = i % len(color_list)
         class_colors[i] = color_list[class_index]
     return class_colors
 
@@ -127,18 +128,20 @@ def arg_parse():
 
     """
 
-    parser = argparse.ArgumentParser(description='YOLOv3 Video Detection Module')
+    parser = argparse.ArgumentParser(description='YOLO v3 Video Detection Module')
 
     parser.add_argument("-v", "--video", dest='video', help=
     "Video to run detection upon",
                         default="video.avi", type=str)
     parser.add_argument("-cl", "--classes", dest="classes", help="Classes file", default="data/coco.names")
     parser.add_argument("-conf", "--confidence", dest="confidence", help="Object Confidence to filter predictions",
-                        default=0.4)
-    parser.add_argument("-nms", "--nms_thresh", dest="nms_thresh", help="NMS Threshhold", default=0.4)
+                        default=0.3)
+    parser.add_argument("-nms", "--nms_thresh", dest="nms_thresh", help="NMS Threshhold", default=0.3)
     parser.add_argument("-c", "--cfg", dest='cfgfile', help=
     "Config file",
                         default="cfg/yolov3.cfg", type=str)
+    parser.add_argument("--hyp", type=str, default="config/hyp.cfg",
+                        help="Path to hyperparameters config file (.cfg)")
     parser.add_argument("-w", "--weights", dest='weightsfile', help=
     "weightsfile",
                         default="yolov3.weights", type=str)
@@ -149,19 +152,21 @@ def arg_parse():
     "Determine how many frames should be discarded. Increase to increase speed.",
                         default=24, type=int)
     return parser.parse_args()
-@profile(filename='./logs/profiles/detectVideo.prof', stdout=False)
-def detect_video():
+
+
+if __name__ == '__main__':
     # Parse command-line arguments
     args = arg_parse()
+    # Parse hyperparameters
+    hyp_config = parse_hyp_config(args.hyp)
     # Set confidence and NMS thresholds
     confidence = float(args.confidence)
     nms_thesh = float(args.nms_thresh)
     # Load class labels
     classes = load_classes(args.classes)
-
-    CUDA = torch.cuda.is_available()
-
     num_classes = len(classes)
+    # Check if CUDA is avalable
+    CUDA = torch.cuda.is_available()
     # Create color mapping
     class_colors = assign_colors_to_classes(num_classes, colors)
     # CUDA = torch.cuda.is_available()
@@ -169,8 +174,10 @@ def detect_video():
     bbox_attrs = 5 + num_classes
     # Initialize YOLO model
     print("Loading network.....")
-    model = Darknet(args.cfgfile)
-    model.load_darknet_weights(args.weightsfile)
+    #model = Darknet(args.cfgfile,hyp_config)
+    #model.load_darknet_weights(args.weightsfile)
+    model = load_model(args.cfgfile, hyp_config, -1, args.weightsfile)
+    model.eval()  # Set model to evaluation mode
     print("Network successfully loaded")
 
     model.hyperparams["height"] = args.reso
@@ -178,7 +185,7 @@ def detect_video():
     assert inp_dim % 32 == 0
     assert inp_dim > 32
 
-    # Check if CUDA is available
+    # Set CUDA if CUDA is available
     if CUDA:
         model.cuda()
 
@@ -205,13 +212,13 @@ def detect_video():
                 img, orig_im, dim = prep_image(frame, inp_dim)
 
                 im_dim = torch.FloatTensor(dim).repeat(1, 2)
-
+                cv2.imwrite("video_to_annotation.jpg", orig_im)
                 # Detect objects in the frame
                 img_detections, imgs = detect_image(model, img, int(args.reso), confidence,
                                                     nms_thesh)  # model, image, img_size=416, conf_thres=0.5, nms_thres=0.5
                 # Annotate frame with detections
-                img_with_detection = draw_and_save_return_image(orig_im, img_detections[0], int(args.reso), classes,
-                                                                class_colors)
+                img_with_detection = draw_and_save_return_image(orig_im, img_detections[0], int(args.reso), classes, class_colors)
+                cv2.imwrite("video_annotation.jpg", img_with_detection)
                 # Display annotated frame
                 if type(img_with_detection) == int:
                     frames += 1
@@ -235,7 +242,3 @@ def detect_video():
 
         else:
             frames += 1
-
-
-if __name__ == '__main__':
-    detect_video()

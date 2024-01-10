@@ -5,9 +5,9 @@ import shutil
 import numpy as np
 import random
 import cv2
-import progress_bar
+from utils import progress_bar
 
-# Varibles
+# Variables
 diff_tolerance = 10 # %
 one_line_label_files = {}
 # Give path to dataset to balance

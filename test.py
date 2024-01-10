@@ -11,6 +11,7 @@ from torch.autograd import Variable
 from torch.utils.data import DataLoader
 
 from models import *
+from utils.confusion_matrix import ConfusionMatrix
 from utils.datasets import ListDataset
 from utils.parse_config import parse_data_config
 from utils.torch_utils import time_synchronized
@@ -154,7 +155,7 @@ def _evaluate(model, dataloader, class_names, img_log_path,img_size, iou_thres, 
     labels = []
     sample_metrics = []  # List of tuples (TP, confs, pred)
 
-    #confusion_matrix = ConfusionMatrix(nc=len(class_names))
+    confusion_matrix = ConfusionMatrix(nc=len(class_names))
     p, r, f1, mp, mr, map50, map, t0, t1 = 0., 0., 0., 0., 0., 0., 0., 0., 0.
     s = ('%20s' + '%12s' * 6) % ('Class', 'Images', 'Targets', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
     for _, imgs, targets in tqdm.tqdm(dataloader, desc="Validating"):
@@ -182,18 +183,21 @@ def _evaluate(model, dataloader, class_names, img_log_path,img_size, iou_thres, 
         )
 
         # Confusion matrix -> moved into confusion_matrix.py
-        #for si, pred in enumerate(outputs):
-        #    out_labels = targets[targets[:, 0] == si, 1:]
-        #    nl, npr = out_labels.shape[0], pred.shape[0]  # number of labels, predictions
-        #    predn = pred.clone()
+        '''
+        for si, pred in enumerate(outputs):
+            out_labels = targets[targets[:, 0] == si, 1:]
+            nl, npr = out_labels.shape[0], pred.shape[0]  # number of labels, predictions
+            predn = pred.clone()
             # Evaluate
-        #    if nl:
-        #        tbox = xywh2xyxy(out_labels[:, 1:5])  # target boxes
-                #scale_boxes(_[si].shape[1:], tbox, shape, shapes[si][1])  # native-space labels
-        #        labelsn = torch.cat((out_labels[:, 0:1], tbox), 1)  # native-space labels
+            if nl:
+                tbox = xywh2xyxy(out_labels[:, 1:5])  # target boxes
+                scale_boxes(_[si].shape[1:], tbox, shape, shapes[si][1])  # native-space labels
+                labelsn = torch.cat((out_labels[:, 0:1], tbox), 1)  # native-space labels
                 #correct = process_batch(predn, labelsn, iouv)
-                #confusion_matrix.process_batch(predn, out_labels)
-        #confusion_matrix.plot(True,img_log_path,class_names)
+                confusion_matrix.process_batch(predn, out_labels)
+        '''
+        confusion_matrix.generate_batch_data(outputs, targets)
+        confusion_matrix.plot(True,img_log_path,class_names)
 
     if len(sample_metrics) == 0:  # No detections over whole validation set.
         print("---- No detections over whole validation set ----")

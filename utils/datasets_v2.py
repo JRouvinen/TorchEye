@@ -21,6 +21,7 @@ from torch.utils.data import Dataset, WeightedRandomSampler, RandomSampler, Sequ
 from tqdm import tqdm
 
 from utils.utils import get_class_weights
+from utils.writer import img_writer_class_dist
 
 help_url = 'https://look_in_here.org'
 
@@ -89,7 +90,7 @@ def create_dataloader(path, imgsz, batch_size, stride, opt, class_names, img_log
                                   pad=pad,
                                   rank=rank
                                   )
-
+    class_weights_orig, class_count = get_class_weights(dataset, class_names, "orig", img_log_path)
     #batch_size = min(batch_size, len(dataset))
     nw = min([os.cpu_count() // world_size, batch_size if batch_size > 1 else 0, workers])  # number of workers
     # [0 = None, 1 = SequentialSampler, 2 = RandomSampler, 3 = SubsetRandomSampler, 4 = WeightedRandomSampler, 5 = BatchSampler]
@@ -101,7 +102,7 @@ def create_dataloader(path, imgsz, batch_size, stride, opt, class_names, img_log
         set_suffle = False
 
     elif opt.sampler == 2:
-        class_weights_all = get_class_weights(dataset, class_names, "orig",img_log_path)
+        #class_weights_all = get_class_weights(dataset, class_names, "orig",img_log_path)
         sampler = RandomSampler(
             data_source=dataset,
             num_samples=batch_size,
@@ -117,10 +118,13 @@ def create_dataloader(path, imgsz, batch_size, stride, opt, class_names, img_log
 
     elif opt.sampler == 4:
         # https://towardsdatascience.com/pytorch-basics-sampling-samplers-2a0f29f0bf2a
-        class_weights_all = get_class_weights(dataset, class_names, "orig", img_log_path)
+        # https://towardsdatascience.com / demystifying - pytorchs - weightedrandomsampler - by - example - a68aceccb452
+        #class_weights_all = get_class_weights(dataset, class_names, "orig", img_log_path)
         sampler = WeightedRandomSampler(
-            weights=class_weights_all,
-            num_samples=batch_size,
+            num_samples=batch_size*2,
+            # Adjusting this parameter to double the size of our original dataset,
+            # we can see that more of our images are seen over the course of an epoch.
+            weights=class_weights_orig,
             replacement=True
         )
         set_suffle = False
@@ -153,7 +157,8 @@ def create_dataloader(path, imgsz, batch_size, stride, opt, class_names, img_log
         sampler=sampler,
         pin_memory=True,
         collate_fn=LoadImagesAndLabels.collate_fn)
-    get_class_weights(dataloader, class_names, "weight",img_log_path)
+    class_weights_weight, class_count_weight = get_class_weights(dataloader, class_names, "weight",img_log_path)
+    img_writer_class_dist(class_weights_weight, class_count_weight,class_names, "Class Distribution", img_log_path)
     return dataloader, dataset
 
 

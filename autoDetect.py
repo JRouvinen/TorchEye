@@ -1,7 +1,7 @@
 import json
 #import paramiko
-import time
-import os
+#import time
+#import os
 import time
 import glob
 import os
@@ -179,7 +179,7 @@ def run():
     '''
     #print_environment_info(ver, "output/" + date + "_detect" + ".txt")
     # Parse config file
-    directory = "C:/Users/Juha/Documents/AI/datasets/aug-2023.tar/aug-2023/srv/data_fetching/road_camera_data/data/datalake/digitraffic/images/"
+    directory = "/data_fetching/road_camera_data/data/datalake/digitraffic/images/"
     json_path = ""
     # Connection parameters
     host = "hostname"

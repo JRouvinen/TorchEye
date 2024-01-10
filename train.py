@@ -160,8 +160,6 @@ def find_and_del_last_ckpt():
     # Delete the oldest .pth file
     os.remove(oldest_file)
 
-
-
 # Python code to check and create necessary folders for logging, checkpoints, and output.
 
 def check_folders():
@@ -190,7 +188,9 @@ def check_folders():
 @threaded()
 def run_tensorboard(tracking_address):
     """
-    This code defines a function to run Tensorboard for monitoring TensorFlow models. It uses the TensorBoard library to configure and launch Tensorboard with the specified tracking address. After launching, it prints the URL where Tensorboard is active.
+    This code defines a function to run Tensorboard for monitoring TensorFlow models.
+    It uses the TensorBoard library to configure and launch Tensorboard with
+    the specified tracking address. After launching, it prints the URL where Tensorboard is active.
 
     Example usage:
     run_tensorboard('/path/to/tracking/address')
@@ -804,7 +804,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                         # Set learning rate
                         for g in optimizer.param_groups:
                             g['lr'] = lr
-
+                # Multi-scale not implemented -> snippet below is just an test example
                 '''
                 # Multi-scale
                 if opt.multi_scale:
@@ -1031,9 +1031,9 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                     verbose=args.verbose,
                     device=device,
                 )
-                # Create confusion matrix
-                confusion_matrix.generate_batch_data(eval_outputs, eval_targets)
-                confusion_matrix.plot(True, model_imgs_logs_path, class_names)
+                # Create confusion matrix -> changed in version 0.4.7
+                #confusion_matrix.generate_batch_data(eval_outputs, eval_targets)
+                #confusion_matrix.plot(True, model_imgs_logs_path, class_names)
 
                 if metrics_output is not None:
                     precision, recall, AP, f1, ap_class = metrics_output
@@ -1050,7 +1050,6 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                     logger.scalar_summary("validation/recall", float(recall.mean()), epoch)
                     logger.scalar_summary("validation/mAP", float(AP.mean()), epoch)
                     logger.scalar_summary("validation/f1", float(f1.mean()), epoch)
-                    # logger.scalar_summary("validation/ap_class", float(ap_class.mean()), epoch)
 
                     # ############
                     # ClearML validation logger - V0.3.3
@@ -1068,7 +1067,6 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                     # Current fitness calculation - V0.3.6B
                     # ############
                     # Updated on version 0.3.12
-                    # w = [0.1, 0.1, 0.6, 0.2, 0.0]  # weights for [P, R, mAP@0.5, f1, ap class]
                     fi = fitness(np.array(evaluation_metrics).reshape(1, -1),
                                  w)  # weighted combination of [P, R, mAP@0.5, f1]
                     curr_fitness = float(fi[0])
@@ -1225,7 +1223,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
 
 
 if __name__ == "__main__":
-    ver = "0.4.6"
+    ver = "0.4.7"
     # Check folders
     check_folders()
     parser = argparse.ArgumentParser(description="Trains the YOLOv3 model.")

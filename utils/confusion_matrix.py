@@ -5,6 +5,7 @@ from matplotlib import pyplot as plt
 #import matplotlib.pyplot as plt
 import numpy as np
 import torch
+import seaborn as sn
 from utils.utils import box_iou, xywh2xyxy
 
 
@@ -89,7 +90,6 @@ class ConfusionMatrix:
 
     #@TryExcept('WARNING ⚠️ ConfusionMatrix plot failure')
     def plot(self, normalize=True, save_dir='', names=()):
-        import seaborn as sn
 
         array = self.matrix / ((self.matrix.sum(0).reshape(1, -1) + 1E-9) if normalize else 1)  # normalize columns
         array[array < 0.005] = np.nan  # don't annotate (would appear as 0.00)

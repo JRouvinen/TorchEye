@@ -99,8 +99,10 @@ class TestRun():
         '''
         implemented_optimizers = ["adamw", 'sgd', "rmsprop", "adadelta", "adamax","adam"]
         '''
-        testargs = ["prog", "-m", "tests/configs/test_run_v2.cfg", "-d", "tests/configs/Test.data", "-e", epochs, "--n_cpu", "2",
-                    "--pretrained_weights","weights/yolov3-tiny.weights","--evaluation_interval","3","-g",gpu,"--seed",seed,"--scheduler",scheduler,'--optimizer',optimizer,"--name",name,"--test_cycle","True"]
+        testargs = ["prog", "-m", "tests/configs/test_run_v2.cfg", "-d", "tests/configs/Test.data", "-e", epochs,
+                    "--n_cpu", "2","--pretrained_weights","weights/yolov3-tiny.weights","--evaluation_interval","3",
+                    "-g",gpu,"--seed",seed,"--scheduler",scheduler,'--optimizer',optimizer,"--name",name,
+                    "--test_cycle","True"]
         with patch.object(sys, 'argv', testargs):
             setup = self.get_setup_file()
             hyp_config = parse_hyp_config(setup.hyp)

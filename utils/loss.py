@@ -231,15 +231,12 @@ def build_targets(p, targets, model):
 
 
 def fitness(x,w):
-    #print("X:", x)
     # Model fitness as a weighted combination of metrics
     #w = [0.0, 0.05, 0.85, 0.1, 0.0]  # weights for [P, R, mAP@0.5, f1, ap class] -> definition moved into train.py - line 386
     return (x[:, :5] * w).sum(1)
-    #return (x[:, :5].dot(w)).sum(1) #Fix to: ValueError: operands could not be broadcast together with shapes (1,5) (0,)
 
 
 def training_fitness(x,w):
-    # Model fitness as a weighted combination of training metrics
+    # Model training fitness as a weighted combination of training metrics
     #w = [0.25, 0.25, 0.25, 0.25]  # weights for [IOU, Class, Object, Loss]
     return (x[:, :4] * w).sum(1)
-    #return (x[:, :4].dot(w)).sum(1)

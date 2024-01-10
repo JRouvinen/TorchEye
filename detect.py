@@ -71,13 +71,14 @@ def detect_directory(model_path, weights_path, img_path, classes, output_path, g
         output_path,
         conf_thres,
         nms_thres)
-    _draw_and_save_output_images(
-        img_detections, imgs, img_size, output_path, classes, date, draw)
+    if draw != 0:
+        _draw_and_save_output_images(
+            img_detections, imgs, img_size, output_path, classes, date, draw)
 
     print(f"---- Detections were saved to: '{output_path}' ----")
 
 
-def detect_image(model, image, img_size=416, conf_thres=0.5, nms_thres=0.5):
+def detect_image(model, image, img_size=416, conf_thres=0.35, nms_thres=0.4):
     """Inferences one image with model.
 
     :param model: Model for inference
@@ -93,7 +94,7 @@ def detect_image(model, image, img_size=416, conf_thres=0.5, nms_thres=0.5):
     :return: Detections on image with each detection in the format: [x1, y1, x2, y2, confidence, class]
     :rtype: nd.array
     """
-    model.eval()  # Set model to evaluation mode
+    #model.eval()  # Set model to evaluation mode
 
     Tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
     img_detections = []  # Stores detections for each image index

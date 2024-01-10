@@ -26,7 +26,7 @@ def img_writer_training(iou_loss, obj_loss, cls_loss, loss, lr, batch_loss,itera
     #header = ['Epoch', 'Epochs','Iou Loss','Object Loss','Class Loss','Loss','Learning Rate']    # img_writer_data = global_step,x_loss,y_loss,w_loss,h_loss,conf_loss,cls_loss,loss,recall,precision
     #log_path = filename.replace("checkpoints", "")
     # Placing the plots in the plane
-    fig = plt.figure(layout="constrained", figsize=(20, 10))
+    fig = plt.figure(layout="constrained", figsize=(30, 10))
     #fig.set_dpi(1240)
     ax_array = fig.subplots(2, 3, squeeze=False)
     # Using Numpy to create an array x
@@ -92,14 +92,28 @@ def img_writer_training(iou_loss, obj_loss, cls_loss, loss, lr, batch_loss,itera
     # https://github.com/matplotlib/mplfinance/issues/386 -> failed to allocate bitmap
     fig.clf()
 
-def img_writer_class_dist(classes,values, header,filename):
+def img_writer_class_dist(weights,classes,values, header,filename):
     fig = plt.figure(layout="constrained", figsize=(20, 10))
     # fig.set_dpi(1240)
     # Using Numpy to create an array x
+    ax_array = fig.subplots(1, 2, squeeze=False)
 
     x = values  # classes
-    y = classes  # AP values
+    #y = weights  # class weights
 
+    # Plot for weights
+    ax_array[0, 0].set_ylabel('Class weights')
+    ax_array[0, 0].bar(x, weights)
+    ax_array[0, 0].grid(axis='y', linestyle='-')
+    ax_array[0, 0].set_xlabel('Classes')
+
+    # Plot for classes
+    ax_array[0, 1].set_ylabel('Class counts')
+    ax_array[0, 1].bar(x, classes)
+    ax_array[0, 1].grid(axis='y', linestyle='-')
+    ax_array[0, 1].set_xlabel('Classes')
+
+    '''
     plt.bar(x, y)
     plt.ylabel('Value')
     plt.xlabel('Classes')
@@ -107,15 +121,17 @@ def img_writer_class_dist(classes,values, header,filename):
     plt.title(header)
     fig.savefig(f'{filename}/{header}_for_dataset.png')
     #plt.close('all')
+    '''
+    fig.savefig(f'{filename}/{header}_for_dataset.png')
     fig.clf()
 
 
 def img_writer_evaluation(precision, recall, mAP, f1, ckpt_fitness,train_fitness,epoch, filename):
     #img_writer_evaluation(precision_array, recall_array, mAP_array, f1_array, ap_cls_array, curr_fitness_array, eval_epoch_array, args.logdir + "/" + date)
     # Placing the plots in the plane
-    fig = plt.figure(layout="constrained", figsize=(20, 20))
+    fig = plt.figure(layout="constrained", figsize=(30, 10))
     #fig.set_dpi(1240)
-    ax_array = fig.subplots(3, 3, squeeze=False)
+    ax_array = fig.subplots(2, 3, squeeze=False)
     # Using Numpy to create an array x
     x = epoch
 
@@ -127,7 +143,6 @@ def img_writer_evaluation(precision, recall, mAP, f1, ckpt_fitness,train_fitness
     ax_array[0, 0].set_xlabel('Epoch')
     #ax_array[0, 0].set_ybound([0, 1])
 
-
     # Plot for recall
     ax_array[0, 1].set_ylabel('Recall')
     ax_array[0, 1].plot(x, recall)
@@ -135,41 +150,32 @@ def img_writer_evaluation(precision, recall, mAP, f1, ckpt_fitness,train_fitness
     ax_array[0, 1].set_xlabel('Epoch')
     #ax_array[0, 1].set_ybound([0, 1])
 
-
-    # Plot for mAP
-    ax_array[0, 2].set_ylabel('mAP')
-    ax_array[0, 2].plot(x, mAP)
+    # Plot for f1
+    ax_array[0, 2].set_ylabel('F1')
+    ax_array[0, 2].plot(x, f1)
     ax_array[0, 2].grid(axis='y', linestyle='-')
     ax_array[0, 2].set_xlabel('Epoch')
-    #ax_array[0, 2].set_ybound([0, 1])
-
-
-    # Plot for f1
-    ax_array[1, 0].set_ylabel('F1')
-    ax_array[1, 0].plot(x, f1)
-    ax_array[1, 0].grid(axis='y', linestyle='-')
-    ax_array[1, 0].set_xlabel('Epoch')
-    #ax_array[1, 0].set_ybound([0, 1])
-
-    # Plot for Precision-Recall
-    ax_array[1, 0].set_ylabel('Precision')
-    ax_array[1, 0].plot(recall, precision)
-    ax_array[1, 0].grid(axis='y', linestyle='-')
-    ax_array[1, 0].set_xlabel('Recall')
     # ax_array[1, 0].set_ybound([0, 1])
 
+    # Plot for mAP
+    ax_array[1, 0].set_ylabel('mAP')
+    ax_array[1, 0].plot(x, mAP)
+    ax_array[1, 0].grid(axis='y', linestyle='-')
+    ax_array[1, 0].set_xlabel('Epoch')
+    #ax_array[0, 2].set_ybound([0, 1])
+
     # Plot for train fitness
-    ax_array[2, 0].set_ylabel('Train FITNESS')
-    ax_array[2, 0].plot(x, train_fitness)
-    ax_array[2, 0].grid(axis='y', linestyle='-')
-    ax_array[2, 0].set_xlabel('Epoch')
+    ax_array[1, 1].set_ylabel('Train FITNESS')
+    ax_array[1, 1].plot(x, train_fitness)
+    ax_array[1, 1].grid(axis='y', linestyle='-')
+    ax_array[1, 1].set_xlabel('Epoch')
     #ax_array[1, 1].set_ybound([-1, ])
 
     # Plot for ckpt fitness
-    ax_array[2, 1].set_ylabel('CKPT FITNESS')
-    ax_array[2, 1].plot(x, ckpt_fitness)
-    ax_array[2, 1].grid(axis='y', linestyle='-')
-    ax_array[2, 1].set_xlabel('Epoch')
+    ax_array[1, 2].set_ylabel('CKPT FITNESS')
+    ax_array[1, 2].plot(x, ckpt_fitness)
+    ax_array[1, 2].grid(axis='y', linestyle='-')
+    ax_array[1, 2].set_xlabel('Epoch')
     #ax_array[1, 2].set_ybound([0, 10])
 
     fig.savefig(filename+'_evaluation_metrics.png')

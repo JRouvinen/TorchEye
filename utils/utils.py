@@ -517,9 +517,6 @@ def get_class_distribution(dataset_obj, class_names, type):
         return count_dict
 def get_class_weights(dataset, class_names, type,log_path):
     if type == 'orig':
-        #class_names_2indx =
-        #target_list = torch.tensor(dataset.targets)
-        #get_class_distribution(dataset, class_names)
         class_count = [i for i in get_class_distribution(dataset, class_names, type).values()]
         #check fot inf values
         indx = 0
@@ -527,15 +524,15 @@ def get_class_weights(dataset, class_names, type,log_path):
             if i == 0:
                 class_count[indx] = 0.1
             indx += 1
-        save_path = log_path
-        img_writer_class_dist(class_count, class_names,"Class Distribution Orig", save_path)
+        #save_path = log_path
+        #img_writer_class_dist(class_count, class_names,"Class Distribution Orig", save_path)
         #class_weights = 1. / torch.tensor(class_count, dtype=torch.float)
         class_weights = [1/i for i in class_count]
-        return class_weights
+        return class_weights, class_count
     else:
         class_count = [i for i in get_class_distribution(dataset, class_names, type).values()]
-        save_path = log_path
-        img_writer_class_dist(class_count, class_names, "Class Distribution Weighted", save_path)
+        #save_path = log_path
+        #img_writer_class_dist(class_count, class_names, "Class Distribution Weighted", save_path)
         #class_weights = 1. / torch.tensor(class_count, dtype=torch.float)
         class_weights = [1/i for i in class_count]
-        return class_weights
+        return class_weights, class_count
