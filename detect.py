@@ -202,7 +202,8 @@ def detect(model, dataloader, output_path, conf_thres, nms_thres,gpu):
 
     model.eval()  # Set model to evaluation mode
 
-    #Old implementation -> caused RuntimeError: Input type (torch.cuda.FloatTensor) and weight type (torch.FloatTensor) should be the same if user wanted to use cpu in machine with cuda gpu
+    #Old implementation -> caused RuntimeError: Input type (torch.cuda.FloatTensor) and
+    # weight type (torch.FloatTensor) should be the same if user wanted to use cpu in machine with cuda gpu
     #Tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
     if gpu != -1 and torch.cuda.is_available():
         Tensor = torch.cuda.FloatTensor

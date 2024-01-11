@@ -8,13 +8,14 @@ import os
 import datetime
 
 import cv2
+import numpy
 import numpy as np
 import torch
 from PIL import Image
 
 from detect import detect_image, detect_images
 from models import load_model
-from utils.parse_config import parse_autodetect_config
+from utils.parse_config import parse_autodetect_config, parse_hyp_config
 from utils.utils import load_classes, rescale_boxes
 from profilehooks import profile
 
@@ -24,16 +25,19 @@ from profilehooks import profile
 def get_files_in_dir(directory):
     # Get a list of all daily sub-directories
     daily_dirs = glob.glob(directory + "/*/")
+    if len(daily_dirs) > 0:
+        # Sort the directories by name in decreasing order and pick the first one
+        latest_daily_dir = sorted(daily_dirs, reverse=True)[0]
 
-    # Sort the directories by name in decreasing order and pick the first one
-    latest_daily_dir = sorted(daily_dirs, reverse=True)[0]
-
-    files = set()
-    for dir_path, dir_names, file_names in os.walk(latest_daily_dir):
-        for file_name in file_names:
-            file_path = os.path.join(dir_path, file_name)
-            files.add(file_path)
-    return files
+        files = set()
+        for dir_path, dir_names, file_names in os.walk(latest_daily_dir):
+            for file_name in file_names:
+                file_path = os.path.join(dir_path, file_name)
+                files.add(file_path)
+        return files
+    else:
+        files = set()
+        return files
 
 def letterbox_image(img, inp_dim):
     '''resize image with unchanged aspect ratio using padding'''
@@ -84,17 +88,17 @@ def _write_json(image_path, detections, img_size, output_path, classes):
     return data
 
 
-def monitor_local_folder(directory, interval,classes, model_path,gpu, weights_path,img_size,conf_thres,nms_thres,output):
+def monitor_local_folder(directory, interval,classes, model_path,gpu, weights_path,img_size,conf_thres,nms_thres,output, hyp):
     #Load model and needed config files
     print('Loading model...')
-    model = load_model(model_path, gpu, weights_path)
+    model = load_model(model_path,hyp, gpu, weights_path)
+    model.eval()  # Set model to evaluation mode
     print('Model loaded...')
-    print(f"Start monitoring folder: {directory}")
 
     files_before = get_files_in_dir(directory)
     for file in files_before:
         print(f"File detected: {file}")
-
+    print(f"Start monitoring folder: {directory}")
     while True:
         time.sleep(interval)
 
@@ -103,14 +107,26 @@ def monitor_local_folder(directory, interval,classes, model_path,gpu, weights_pa
         added_files = files_after - files_before
         if added_files:
 
+            #For performance testing
+            # Start timer
+            start_time = time.time()
+
             data = []
             img_paths = []
 
             for file in added_files:
+                file = file.replace('\\', '/')
                 print(f"New file detected: {file}")
                 img_paths.append(file)
-                img = cv2.imread(file)
-                img, orig_img, dim = prep_image(img,img_size)
+                #img = cv2.imread(file)
+                # -Fix for [ WARN:0@25.254] global loadsave.cpp:248 cv::findDecoder imread_( - ver 0.3.0
+                stream = open(file, "rb")
+                bytes = bytearray(stream.read())
+                numpyarray = numpy.asarray(bytes, dtype=numpy.uint8)
+                bgrImage = cv2.imdecode(numpyarray, cv2.IMREAD_UNCHANGED)
+                img, orig_img, dim = prep_image(bgrImage,img_size)
+                # ---------------------
+                #img, orig_img, dim = prep_image(img,img_size)
                 print(f"Detecting objects in new images...")
                 detections, imgs = detect_image(model, img, img_size, conf_thres, nms_thres)
                 det_data = _write_json(file,detections[0],img_size,output,classes)
@@ -134,6 +150,14 @@ def monitor_local_folder(directory, interval,classes, model_path,gpu, weights_pa
             f = open(output + "/" + "detections" + ".json", "w")
             f.write(json_data)
             f.close()
+            #Performance testing
+            # End timer
+            end_time = time.time()
+
+            # Calculate elapsed time
+            elapsed_time = end_time - start_time
+            print("Elapsed time: ", elapsed_time)
+
             print('Continue monitoring...')
 
 def monitor_folder_ssh(host, port, username, password, directory, interval):
@@ -175,7 +199,7 @@ def monitor_folder_ssh(host, port, username, password, directory, interval):
 
 def run():
     date = datetime.datetime.now().strftime("%Y_%m_%d__%H_%M_%S")
-    ver = "0.2.1"
+    ver = "0.3.0"
     '''
     #print_environment_info(ver, "output/" + date + "_detect" + ".txt")
     # Parse config file
@@ -199,11 +223,12 @@ def run():
     '''
     params = parse_autodetect_config("config/autodetect.cfg")
     classes = load_classes(params['classes'])
+    hyp_config = parse_hyp_config(params['hyperparams'])
     if params['json_path'] == "":
         params['json_path'] = params['directory']
     # List of class names
     monitor_local_folder(params['directory'], int(params['interval']),classes,params['model'],int(params['gpu']),
-                         params['weights'],int(params['img_size']),float(params['conf_thres']),float(params['nms_thres']),params['json_path'])
+                         params['weights'],int(params['img_size']),float(params['conf_thres']),float(params['nms_thres']),params['json_path'], hyp_config)
 
 
 if __name__ == '__main__':

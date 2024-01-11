@@ -106,7 +106,6 @@ def parse_autodetect_config(path):
     import configparser
     config = configparser.ConfigParser()
     config.read(path)
-
     autodetect = {}
     autodetect['directory'] = config.get('autodetect', 'directory')
     autodetect['json_path'] = config.get('autodetect', 'json_path')
@@ -118,6 +117,7 @@ def parse_autodetect_config(path):
     autodetect['img_size'] = config.getint('autodetect', 'img_size')
     autodetect['model'] = config.get('autodetect', 'model')
     autodetect['weights'] = config.get('autodetect', 'weights')
+    autodetect['hyperparams'] = config.get('autodetect', 'hyperparams')
     autodetect['host'] = config.get('autodetect', 'host')
     autodetect['port'] = config.getint('autodetect', 'port')
     autodetect['username'] = config.get('autodetect', 'username')
