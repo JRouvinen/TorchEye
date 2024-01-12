@@ -13,7 +13,7 @@ import numpy as np
 import torch
 from PIL import Image
 
-from detect import detect_image, detect_images, _create_dataloader_from_list, detect
+from detect import detect_image, _create_dataloader_from_list, detect
 from models import load_model
 from utils.parse_config import parse_autodetect_config, parse_hyp_config
 from utils.utils import load_classes, rescale_boxes
@@ -88,7 +88,7 @@ def _write_json(image_path, detections, img_size, output_path, classes):
     return data
 
 
-def monitor_local_folder(directory, interval,classes, model_path,gpu, weights_path,img_size,conf_thres,nms_thres,output, hyp):
+def monitor_local_folder(directory, interval,classes, model_path,gpu, weights_path,img_size,conf_thres,nms_thres,output,n_cpu, batch_size, hyp):
     #Load model and needed config files
     print('Loading model...')
     model = load_model(model_path,hyp, gpu, weights_path)
@@ -101,8 +101,6 @@ def monitor_local_folder(directory, interval,classes, model_path,gpu, weights_pa
         old_files += 1
     print(f"{old_files} existing files detected in folder")
     print(f"Start monitoring folder: {directory}")
-    batch_size = 4
-    n_cpu = 4
     output_path = None
     while True:
         print(f'Waiting for {interval} seconds before new scan')
@@ -223,7 +221,7 @@ def monitor_folder_ssh(host, port, username, password, directory, interval):
 
 def run():
     date = datetime.datetime.now().strftime("%Y_%m_%d__%H_%M_%S")
-    ver = "0.3.1"
+    ver = "0.3.2"
     '''
     #print_environment_info(ver, "output/" + date + "_detect" + ".txt")
     # Parse config file
@@ -252,7 +250,7 @@ def run():
         params['json_path'] = params['directory']
     # List of class names
     monitor_local_folder(params['directory'], int(params['interval']),classes,params['model'],int(params['gpu']),
-                         params['weights'],int(params['img_size']),float(params['conf_thres']),float(params['nms_thres']),params['json_path'], hyp_config)
+                         params['weights'],int(params['img_size']),float(params['conf_thres']),float(params['nms_thres']),params['json_path'],params['n_cpu'], params['batch_size'], hyp_config)
 
 
 if __name__ == '__main__':

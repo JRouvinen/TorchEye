@@ -2,7 +2,7 @@
 # parse_config.py
 # Author: Juha-Matti Rouvinen
 # Date: 2023-09-22
-# Updated: 2023-11-02
+# Updated: 2024-01-12
 #
 ##################################
 
@@ -111,6 +111,8 @@ def parse_autodetect_config(path):
     autodetect['json_path'] = config.get('autodetect', 'json_path')
     autodetect['interval'] = config.get('autodetect', 'interval')
     autodetect['gpu'] = config.getint('autodetect', 'gpu')
+    autodetect['n_cpu'] = config.getint('autodetect', 'n_cpu')
+    autodetect['batch_size'] = config.getint('autodetect','batch_size')
     autodetect['classes'] = config.get('autodetect', 'classes')
     autodetect['conf_thres'] = config.getfloat('autodetect', 'conf_thres')
     autodetect['nms_thres'] = config.getfloat('autodetect', 'nms_thres')

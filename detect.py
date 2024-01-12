@@ -114,27 +114,7 @@ def detect_image(model, image, img_size=416, conf_thres=0.35, nms_thres=0.4):
     # imgs.extend(img_paths)
     return img_detections, imgs
 
-    ''' OLD IMPLEMENTATION
-    model.eval()  # Set model to evaluation mode
-
-    # Configure input
-    input_img = transforms.Compose([
-        DEFAULT_TRANSFORMS,
-        Resize(img_size)])(
-            (image, np.zeros((1, 5))))[0].unsqueeze(0)
-
-    if torch.cuda.is_available():
-        input_img = input_img.to("cuda")
-
-    # Get detections
-    with torch.no_grad():
-        detections = model(input_img)
-        detections = non_max_suppression(detections, conf_thres, nms_thres)
-        detections = rescale_boxes(detections[0], img_size, image.shape[:2])
-    return detections.numpy()
-    '''
-
-
+# Detect images is depricated in version 0.2.2
 def detect_images(model, images, batch_size, img_size=640, conf_thres=0.5, nms_thres=0.5, gpu=-1):
     """Inferences one image with model.
     :param model: Model for inference
@@ -428,7 +408,7 @@ def _create_data_loader(img_path, batch_size, img_size, n_cpu):
 @profile(filename='./logs/profiles/detect.prof', stdout=False)
 def run():
     date = datetime.datetime.now().strftime("%Y_%m_%d__%H_%M_%S")
-    ver = "0.2.1"
+    ver = "0.2.2"
     print_environment_info(ver, "output/" + date + "_detect" + ".txt")
     parser = argparse.ArgumentParser(description="Detect objects on images.")
     parser.add_argument("-m", "--model", type=str, default="config/yolov3.cfg",
