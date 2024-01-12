@@ -76,6 +76,7 @@ from terminaltables import AsciiTable
 from torch.cuda import amp
 from utils import threaded
 from utils.confusion_matrix import ConfusionMatrix
+from utils.plots import plot_images
 
 from utils.torch_utils import ModelEMA
 # Profilers
@@ -843,13 +844,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                     if ema:
                         ema.update(model)
 
-                # Plot
-                # if args.evaluation_interval % epoch == 0 and args.verbose:
-                #    f = f'{model_logs_path}/images/train_batch{integ_batch_num}.jpg'  # filename
-                #    plot_images(images=imgs, targets=targets, paths=model_logs_path, fname=f)
-                #    # if tb_writer:
-                #    #     tb_writer.add_image(f, result, dataformats='HWC', global_step=epoch)
-                #    #     tb_writer.add_graph(model, imgs)  # add model to tensorboard
+
 
                 # Scheduler
                 # scheduler.get_last_lr()
@@ -964,8 +959,9 @@ def run(args, data_config, hyp_config, ver, clearml=None):
             # Reason to eval epoch change: uploads get stucked when using clearml and larger models
             #
             if epoch % args.evaluation_interval == 0:
-                # Save last model to checkpoint file
 
+
+                # Save last model to checkpoint file
                 # Updated on version 0.3.0 to save only last
                 checkpoint_path = f"{model_ckpt_logs_path}/{model_name}_ckpt_last.pth"
                 print(f"- ⏺ - Saving last checkpoint to: '{checkpoint_path}' ----")
@@ -981,7 +977,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
             if auto_eval is True and loss_items.dim() > 0:
                 # #############
                 # Training fitness evaluation
-                # Calculate weighted loss -> smaller losses better training fitness
+                # Calculate weighted loss -> smaller losses = better training fitness
                 # #############
                 print("\n- 🔄 - Auto evaluating model on training metrics ----")
                 training_evaluation_metrics = [
@@ -991,7 +987,6 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                     float(loss_items[3]),  # Loss
                 ]
                 # Updated on version 0.3.12
-                # w_train = [0.20, 0.30, 0.30, 0.20]  # weights for [IOU, Class, Object, Loss]
                 fi_train = training_fitness(np.array(training_evaluation_metrics).reshape(1, -1), w_train)
                 train_fitness = float(fi_train[0])
                 logger.scalar_summary("fitness/training", train_fitness, epoch)
@@ -1031,6 +1026,17 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                     verbose=args.verbose,
                     device=device,
                 )
+
+
+                # Plot
+                # if args.evaluation_interval % epoch == 0 and args.verbose:
+                #if args.draw:
+                #    f = f'{model_logs_path}/images/train_batch{integ_batch_num}.jpg'  # filename
+                #    plot_images(images=imgs, targets=eval_targets, paths=model_logs_path, fname=f)
+                #    # if tb_writer:
+                #    #     tb_writer.add_image(f, result, dataformats='HWC', global_step=epoch)
+                #    #     tb_writer.add_graph(model, imgs)  # add model to tensorboard
+
                 # Create confusion matrix -> changed in version 0.4.7
                 #confusion_matrix.generate_batch_data(eval_outputs, eval_targets)
                 #confusion_matrix.plot(True, model_imgs_logs_path, class_names)
@@ -1223,7 +1229,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
 
 
 if __name__ == "__main__":
-    ver = "0.4.7B"
+    ver = "0.4.8"
     # Check folders
     check_folders()
     parser = argparse.ArgumentParser(description="Trains the YOLOv3 model.")
@@ -1262,7 +1268,9 @@ if __name__ == "__main__":
     parser.add_argument("--name", type=str, default=None,
                         help="Name for trained model")
     parser.add_argument("--warmup", type=bool, default=True,
-                        help="Name for trained model")
+                        help="Use model training warmup")
+    parser.add_argument("--draw", type=bool, default=False,
+                        help="Draw evaluation images during training")
     parser.add_argument("--clearml", type=bool, default=False,
                         help="Connect to clearml server")
     parser.add_argument("--test_cycle", type=bool, default=False,

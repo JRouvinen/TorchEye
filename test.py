@@ -14,6 +14,7 @@ from models import *
 from utils.confusion_matrix import ConfusionMatrix
 from utils.datasets import ListDataset
 from utils.parse_config import parse_data_config
+from utils.plots import plot_images
 from utils.torch_utils import time_synchronized
 from utils.transforms import DEFAULT_TRANSFORMS
 from utils.utils import load_classes, ap_per_class, get_batch_statistics, non_max_suppression, xywh2xyxy, \
@@ -181,21 +182,16 @@ def _evaluate(model, dataloader, class_names, img_log_path,img_size, iou_thres, 
         sample_metrics.extend(
             get_batch_statistics(outputs, targets, iou_threshold=iou_thres)
         )
-
-        # Confusion matrix -> moved into confusion_matrix.py
-        '''
-        for si, pred in enumerate(outputs):
-            out_labels = targets[targets[:, 0] == si, 1:]
-            nl, npr = out_labels.shape[0], pred.shape[0]  # number of labels, predictions
-            predn = pred.clone()
-            # Evaluate
-            if nl:
-                tbox = xywh2xyxy(out_labels[:, 1:5])  # target boxes
-                scale_boxes(_[si].shape[1:], tbox, shape, shapes[si][1])  # native-space labels
-                labelsn = torch.cat((out_labels[:, 0:1], tbox), 1)  # native-space labels
-                #correct = process_batch(predn, labelsn, iouv)
-                confusion_matrix.process_batch(predn, out_labels)
-        '''
+        #Image plotting
+        # Plot
+        # if args.evaluation_interval % epoch == 0 and args.verbose:
+        if draw:
+            f = f'{img_log_path}/images/train_batch{integ_batch_num}.jpg'  # filename
+            plot_images(images=imgs, targets=targets, paths=img_log_path, fname=f)
+        #    # if tb_writer:
+        #    #     tb_writer.add_image(f, result, dataformats='HWC', global_step=epoch)
+        #    #     tb_writer.add_graph(model, imgs)  # add model to tensorboard
+        #Confusion matrix
         confusion_matrix.generate_batch_data(outputs, targets)
         confusion_matrix.plot(True,img_log_path,class_names)
 
