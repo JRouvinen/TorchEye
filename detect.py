@@ -27,7 +27,7 @@ from torch.autograd import Variable
 from models import load_model
 from utils.parse_config import parse_hyp_config
 from utils.utils import load_classes, rescale_boxes, non_max_suppression, print_environment_info
-from utils.datasets import ImageFolder, ListDataset
+from utils.datasets import ImageFolder, ListDataset, ImageList
 from utils.transforms import Resize, DEFAULT_TRANSFORMS
 
 import matplotlib.pyplot as plt
@@ -38,8 +38,8 @@ from utils.writer import log_file_writer
 from profilehooks import profile
 
 
-def detect_directory(model_path, weights_path, img_path, classes, output_path, gpu, date,hyp,
-                     batch_size=8,img_size=416, n_cpu=8, conf_thres=0.5, nms_thres=0.5,draw=0):
+def detect_directory(model_path, weights_path, img_path, classes, output_path, gpu, date, hyp,
+                     batch_size=8, img_size=416, n_cpu=8, conf_thres=0.5, nms_thres=0.5, draw=0):
     """Detects objects on all images in specified directory and saves output images with drawn detections.
 
     :param model_path: Path to model definition file (.cfg)
@@ -63,9 +63,9 @@ def detect_directory(model_path, weights_path, img_path, classes, output_path, g
     :param nms_thres: IOU threshold for non-maximum suppression, defaults to 0.5
     :type nms_thres: float, optional
     """
-    #draw=0
+    # draw=0
     dataloader = _create_data_loader(img_path, batch_size, img_size, n_cpu)
-    model = load_model(model_path, hyp,gpu, weights_path)
+    model = load_model(model_path, hyp, gpu, weights_path)
     img_detections, imgs = detect(
         model,
         dataloader,
@@ -73,9 +73,9 @@ def detect_directory(model_path, weights_path, img_path, classes, output_path, g
         conf_thres,
         nms_thres,
         gpu)
-    #if draw != 0:
+    # if draw != 0:
     _draw_and_save_output_images(
-            img_detections, imgs, img_size, output_path, classes, date, draw)
+        img_detections, imgs, img_size, output_path, classes, date, draw)
 
     print(f"---- Detections were saved to: '{output_path}' ----")
 
@@ -96,7 +96,7 @@ def detect_image(model, image, img_size=416, conf_thres=0.35, nms_thres=0.4):
     :return: Detections on image with each detection in the format: [x1, y1, x2, y2, confidence, class]
     :rtype: nd.array
     """
-    #model.eval()  # Set model to evaluation mode
+    # model.eval()  # Set model to evaluation mode
 
     Tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
     img_detections = []  # Stores detections for each image index
@@ -111,9 +111,8 @@ def detect_image(model, image, img_size=416, conf_thres=0.35, nms_thres=0.4):
 
     # Store image and detections
     img_detections.extend(detections)
-    #imgs.extend(img_paths)
+    # imgs.extend(img_paths)
     return img_detections, imgs
-
 
     ''' OLD IMPLEMENTATION
     model.eval()  # Set model to evaluation mode
@@ -135,8 +134,8 @@ def detect_image(model, image, img_size=416, conf_thres=0.35, nms_thres=0.4):
     return detections.numpy()
     '''
 
-def detect_images(model, images, img_size=640, conf_thres=0.5,nms_thres=0.5):
 
+def detect_images(model, images, batch_size, img_size=640, conf_thres=0.5, nms_thres=0.5, gpu=-1):
     """Inferences one image with model.
     :param model: Model for inference
     :type model: models.Darknet
@@ -151,12 +150,12 @@ def detect_images(model, images, img_size=640, conf_thres=0.5,nms_thres=0.5):
     :return: Detections on image with each detection in the format: [x1, y1, x2, y2, confidence, class]
     :rtype: nd.array
     """
-    print('input images:',images)
-    batch_size = 1
+    print('input images:', images)
+    # batch_size = 16
     n_cpu = 4
-    model.eval()  # Set model to evaluation mode
-    dataloader = _create_data_loader_list(images, batch_size, img_size, n_cpu)
-    img_detections, imgs = detect(model,dataloader,None,0.3,0.5)
+    #model.eval()  # Set model to evaluation mode
+    dataloader = _create_dataloader_from_list(images, batch_size, img_size, n_cpu)
+    img_detections, imgs = detect(model, dataloader, None, 0.3, 0.5, gpu)
     return img_detections, imgs
 
     '''
@@ -178,7 +177,9 @@ def detect_images(model, images, img_size=640, conf_thres=0.5,nms_thres=0.5):
     #imgs.extend(img_paths)
     return img_detections, imgs
     '''
-def detect(model, dataloader, output_path, conf_thres, nms_thres,gpu):
+
+
+def detect(model, dataloader, output_path, conf_thres, nms_thres, gpu):
     """Inferences images with model.
 
     :param model: Model for inference
@@ -202,9 +203,9 @@ def detect(model, dataloader, output_path, conf_thres, nms_thres,gpu):
 
     model.eval()  # Set model to evaluation mode
 
-    #Old implementation -> caused RuntimeError: Input type (torch.cuda.FloatTensor) and
+    # Old implementation -> caused RuntimeError: Input type (torch.cuda.FloatTensor) and
     # weight type (torch.FloatTensor) should be the same if user wanted to use cpu in machine with cuda gpu
-    #Tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
+    # Tensor = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
     if gpu != -1 and torch.cuda.is_available():
         Tensor = torch.cuda.FloatTensor
     else:
@@ -252,7 +253,6 @@ def _draw_and_save_output_images(img_detections, imgs, img_size, output_path, cl
             image_path, detections, img_size, output_path, classes, date, draw)
 
 
-
 def _draw_and_save_output_image(image_path, detections, img_size, output_path, classes, date, draw):
     """Draws detections in output image and stores this.
 
@@ -267,7 +267,7 @@ def _draw_and_save_output_image(image_path, detections, img_size, output_path, c
     :param classes: List of class names
     :type classes: [str]
     """
-    #create just log file
+    # create just log file
     if draw == 0:
         img = np.array(Image.open(image_path))
         # Rescale boxes to original image
@@ -275,8 +275,9 @@ def _draw_and_save_output_image(image_path, detections, img_size, output_path, c
         unique_labels = detections[:, -1].cpu().unique()
         n_cls_preds = len(unique_labels)
         for x1, y1, x2, y2, conf, cls_pred in detections:
-            #print(f"\t+ Label: {classes[int(cls_pred)]} | Confidence: {conf.item():0.4f}")
-            log_file_writer(f"\t+ Label: {classes[int(cls_pred)]} | Confidence: {conf.item():0.4f}", "output/" + date + "_detect" + ".txt")
+            # print(f"\t+ Label: {classes[int(cls_pred)]} | Confidence: {conf.item():0.4f}")
+            log_file_writer(f"\t+ Label: {classes[int(cls_pred)]} | Confidence: {conf.item():0.4f}",
+                            "output/" + date + "_detect" + ".txt")
     else:
         # Create plot
         img = np.array(Image.open(image_path))
@@ -292,9 +293,9 @@ def _draw_and_save_output_image(image_path, detections, img_size, output_path, c
         colors = [cmap(i) for i in np.linspace(0, 1, n_cls_preds)]
         bbox_colors = random.sample(colors, n_cls_preds)
         for x1, y1, x2, y2, conf, cls_pred in detections:
-
             print(f"\t+ Label: {classes[int(cls_pred)]} | Confidence: {conf.item():0.4f}")
-            log_file_writer(f"\t+ Label: {classes[int(cls_pred)]} | Confidence: {conf.item():0.4f}", "output/" + date + "_detect" + ".txt")
+            log_file_writer(f"\t+ Label: {classes[int(cls_pred)]} | Confidence: {conf.item():0.4f}",
+                            "output/" + date + "_detect" + ".txt")
 
             box_w = x2 - x1
             box_h = y2 - y1
@@ -322,6 +323,7 @@ def _draw_and_save_output_image(image_path, detections, img_size, output_path, c
         plt.savefig(output_path, bbox_inches="tight", pad_inches=0.0)
         plt.close()
 
+
 def draw_and_save_return_image(image, detections, img_size, classes, class_colors):
     """Draws detections in output image and stores this.
 
@@ -346,7 +348,6 @@ def draw_and_save_return_image(image, detections, img_size, classes, class_color
     n_cls_preds = len(unique_labels)
 
     for x1, y1, x2, y2, conf, cls_pred in detections:
-
         box_w = x2 - x1
         box_h = y2 - y1
 
@@ -356,14 +357,30 @@ def draw_and_save_return_image(image, detections, img_size, classes, class_color
         y1_loc = int(y1.item())
         x2_loc = int(x2.item())
         y2_loc = int(y2.item())
-        #cv2.parts
-        cv2.rectangle(image, (x1_loc, y1_loc),(x2_loc,y2_loc), color, 1)
-        t_size = cv2.getTextSize(classes[int(cls_pred)], cv2.FONT_HERSHEY_PLAIN, 1 , 1)[0]
+        # cv2.parts
+        cv2.rectangle(image, (x1_loc, y1_loc), (x2_loc, y2_loc), color, 1)
+        t_size = cv2.getTextSize(classes[int(cls_pred)], cv2.FONT_HERSHEY_PLAIN, 1, 1)[0]
         c2 = x1_loc + t_size[0] + 40, y1_loc + t_size[1] + 4
-        cv2.rectangle(image, (x1_loc, y1_loc), c2,color, -1)
-        cv2.putText(image, classes[int(cls_pred)]+f',{round(float(conf),2)}', (x1_loc, y1_loc + t_size[1] + 4), cv2.FONT_HERSHEY_PLAIN, 1, [225,255,255], 1);
+        cv2.rectangle(image, (x1_loc, y1_loc), c2, color, -1)
+        cv2.putText(image, classes[int(cls_pred)] + f',{round(float(conf), 2)}', (x1_loc, y1_loc + t_size[1] + 4),
+                    cv2.FONT_HERSHEY_PLAIN, 1, [225, 255, 255], 1);
 
     return image
+
+
+def _create_dataloader_from_list(img_list, batch_size, img_size, n_cpu):
+    dataset = ImageList(
+        img_list,
+        transform=transforms.Compose([DEFAULT_TRANSFORMS, Resize(img_size)]))
+
+    dataloader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=n_cpu,
+        pin_memory=True)
+    return dataloader
+
 
 def _create_data_loader_list(list_path, batch_size, img_size, n_cpu):
     dataset = ListDataset(
@@ -380,6 +397,7 @@ def _create_data_loader_list(list_path, batch_size, img_size, n_cpu):
         num_workers=n_cpu,
         pin_memory=True)
     return dataloader
+
 
 def _create_data_loader(img_path, batch_size, img_size, n_cpu):
     """Creates a DataLoader for inferencing.
@@ -406,18 +424,21 @@ def _create_data_loader(img_path, batch_size, img_size, n_cpu):
         pin_memory=True)
     return dataloader
 
+
 @profile(filename='./logs/profiles/detect.prof', stdout=False)
-
 def run():
-
     date = datetime.datetime.now().strftime("%Y_%m_%d__%H_%M_%S")
     ver = "0.2.1"
     print_environment_info(ver, "output/" + date + "_detect" + ".txt")
     parser = argparse.ArgumentParser(description="Detect objects on images.")
-    parser.add_argument("-m", "--model", type=str, default="config/yolov3.cfg", help="Path to model definition file (.cfg)")
-    parser.add_argument("-w", "--weights", type=str, default="weights/yolov3.weights", help="Path to weights or checkpoint file (.weights or .pth)")
-    parser.add_argument("-i", "--images", type=str, default="data/samples", help="Path to directory with images to inference")
-    parser.add_argument("-c", "--classes", type=str, default="data/coco.names", help="Path to classes label file (.names)")
+    parser.add_argument("-m", "--model", type=str, default="config/yolov3.cfg",
+                        help="Path to model definition file (.cfg)")
+    parser.add_argument("-w", "--weights", type=str, default="weights/yolov3.weights",
+                        help="Path to weights or checkpoint file (.weights or .pth)")
+    parser.add_argument("-i", "--images", type=str, default="data/samples",
+                        help="Path to directory with images to inference")
+    parser.add_argument("-c", "--classes", type=str, default="data/coco.names",
+                        help="Path to classes label file (.names)")
     parser.add_argument("--hyp", type=str, default="config/hyp.cfg",
                         help="Path to hyperparameters config file (.cfg)")
     parser.add_argument("-o", "--output", type=str, default="output", help="Path to output directory")
@@ -427,11 +448,11 @@ def run():
     parser.add_argument("--n_cpu", type=int, default=4, help="Number of cpu threads to use during batch generation")
     parser.add_argument("--conf_thres", type=float, default=0.35, help="Object confidence threshold")
     parser.add_argument("--nms_thres", type=float, default=0.5, help="IOU threshold for non-maximum suppression")
-    parser.add_argument("-g", "--gpu",type=int, default=-1, help="GPU to use")
+    parser.add_argument("-g", "--gpu", type=int, default=-1, help="GPU to use")
 
     args = parser.parse_args()
     print(f"Command line arguments: {args}")
-    #Create_new detect_file
+    # Create_new detect_file
     f = open("output/" + date + "_detect" + ".txt", "w")
     f.close()
     log_file_writer(f"Command line arguments: {args}", "output/" + date + "_detect" + ".txt")
@@ -455,7 +476,7 @@ def run():
         conf_thres=args.conf_thres,
         nms_thres=args.nms_thres,
         draw=args.draw
-        )
+    )
 
 
 if __name__ == '__main__':

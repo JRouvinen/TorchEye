@@ -29,6 +29,29 @@ def resize(image, size):
     image = F.interpolate(image.unsqueeze(0), size=size, mode="nearest").squeeze(0)
     return image
 
+class ImageList(Dataset):
+    def __init__(self, image_list, transform=None):
+        self.files = sorted(image_list)
+        self.transform = transform
+
+    def __getitem__(self, index):
+
+        img_path = self.files[index % len(self.files)]
+        img = np.array(
+            Image.open(img_path).convert('RGB'),
+            dtype=np.uint8)
+
+        # Label Placeholder
+        boxes = np.zeros((1, 5))
+
+        # Apply transforms
+        if self.transform:
+            img, _ = self.transform((img, boxes))
+
+        return img_path, img
+
+    def __len__(self):
+        return len(self.files)
 
 class ImageFolder(Dataset):
     def __init__(self, folder_path, transform=None):

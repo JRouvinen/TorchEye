@@ -13,7 +13,7 @@ import numpy as np
 import torch
 from PIL import Image
 
-from detect import detect_image, detect_images
+from detect import detect_image, detect_images, _create_dataloader_from_list, detect
 from models import load_model
 from utils.parse_config import parse_autodetect_config, parse_hyp_config
 from utils.utils import load_classes, rescale_boxes
@@ -96,12 +96,18 @@ def monitor_local_folder(directory, interval,classes, model_path,gpu, weights_pa
     print('Model loaded...')
 
     files_before = get_files_in_dir(directory)
+    old_files = 0
     for file in files_before:
-        print(f"File detected: {file}")
+        old_files += 1
+    print(f"{old_files} existing files detected in folder")
     print(f"Start monitoring folder: {directory}")
+    batch_size = 4
+    n_cpu = 4
+    output_path = None
     while True:
+        print(f'Waiting for {interval} seconds before new scan')
         time.sleep(interval)
-
+        print(f'Scanning for new files...')
         files_after = get_files_in_dir(directory)
 
         added_files = files_after - files_before
@@ -114,23 +120,40 @@ def monitor_local_folder(directory, interval,classes, model_path,gpu, weights_pa
             data = []
             img_paths = []
 
-            for file in added_files:
-                file = file.replace('\\', '/')
-                print(f"New file detected: {file}")
-                img_paths.append(file)
-                #img = cv2.imread(file)
-                # -Fix for [ WARN:0@25.254] global loadsave.cpp:248 cv::findDecoder imread_( - ver 0.3.0
-                stream = open(file, "rb")
-                bytes = bytearray(stream.read())
-                numpyarray = numpy.asarray(bytes, dtype=numpy.uint8)
-                bgrImage = cv2.imdecode(numpyarray, cv2.IMREAD_UNCHANGED)
-                img, orig_img, dim = prep_image(bgrImage,img_size)
-                # ---------------------
-                #img, orig_img, dim = prep_image(img,img_size)
+            if len(added_files) >= batch_size:
                 print(f"Detecting objects in new images...")
-                detections, imgs = detect_image(model, img, img_size, conf_thres, nms_thres)
-                det_data = _write_json(file,detections[0],img_size,output,classes)
-                data.append(det_data)
+                img_list = list(added_files)
+                dataloader = _create_dataloader_from_list(img_list, batch_size, img_size, n_cpu)
+                img_detections, imgs = detect(
+                    model,
+                    dataloader,
+                    output_path,
+                    conf_thres,
+                    nms_thres,
+                    gpu)
+                index = 0
+                for (image_path, detection) in zip(imgs, img_detections):
+                    det_data = _write_json(image_path, detection, img_size, output, classes)
+                    data.append(det_data)
+                    index += 1
+            else:
+                for file in added_files:
+                    file = file.replace('\\', '/')
+                    print(f"New file detected: {file}")
+                    img_paths.append(file)
+                    #img = cv2.imread(file)
+                    # -Fix for [ WARN:0@25.254] global loadsave.cpp:248 cv::findDecoder imread_( - ver 0.3.0
+                    stream = open(file, "rb")
+                    bytes = bytearray(stream.read())
+                    numpyarray = numpy.asarray(bytes, dtype=numpy.uint8)
+                    bgrImage = cv2.imdecode(numpyarray, cv2.IMREAD_UNCHANGED)
+                    img, orig_img, dim = prep_image(bgrImage,img_size)
+                    # ---------------------
+                    #img, orig_img, dim = prep_image(img,img_size)
+                    print(f"Detecting objects in new images...")
+                    detections, imgs = detect_image(model, img, img_size, conf_thres, nms_thres)
+                    det_data = _write_json(file,detections[0],img_size,output,classes)
+                    data.append(det_data)
             files_before = files_after
             print('Detections for new files done...')
             print(f'Writing JSON to {output + "/" + "detections" + ".json"}')
@@ -159,7 +182,8 @@ def monitor_local_folder(directory, interval,classes, model_path,gpu, weights_pa
             print("Elapsed time: ", elapsed_time)
 
             print('Continue monitoring...')
-
+        else:
+            print(f'No new files found')
 def monitor_folder_ssh(host, port, username, password, directory, interval):
     pass
     '''
@@ -199,7 +223,7 @@ def monitor_folder_ssh(host, port, username, password, directory, interval):
 
 def run():
     date = datetime.datetime.now().strftime("%Y_%m_%d__%H_%M_%S")
-    ver = "0.3.0"
+    ver = "0.3.1"
     '''
     #print_environment_info(ver, "output/" + date + "_detect" + ".txt")
     # Parse config file
