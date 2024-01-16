@@ -1034,8 +1034,8 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                 # Plot
                 # if args.evaluation_interval % epoch == 0 and args.verbose:
                 #if args.draw:
-                #    f = f'{model_logs_path}/images/train_batch{integ_batch_num}.jpg'  # filename
-                #    plot_images(images=imgs, targets=eval_targets, paths=model_logs_path, fname=f)
+                #    f = f'{model_logs_path}/images/epoch_batch_{epoch}.jpg'  # filename
+                #    plot_images(images=imgs, targets=list(pred), paths=model_logs_path, fname=f)
                 #    # if tb_writer:
                 #    #     tb_writer.add_image(f, result, dataformats='HWC', global_step=epoch)
                 #    #     tb_writer.add_graph(model, imgs)  # add model to tensorboard
@@ -1232,7 +1232,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
 
 
 if __name__ == "__main__":
-    ver = "0.4.8A"
+    ver = "0.4.8C"
     # Check folders
     check_folders()
     parser = argparse.ArgumentParser(description="Trains the YOLOv3 model.")

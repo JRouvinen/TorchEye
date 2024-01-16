@@ -167,7 +167,7 @@ def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw, img_siz
 
     confusion_matrix = ConfusionMatrix(nc=len(class_names))
     p, r, f1, mp, mr, map50, map, t0, t1 = 0., 0., 0., 0., 0., 0., 0., 0., 0.
-    s = ('%20s' + '%12s' * 6) % ('Class', 'Images', 'Targets', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
+    #s = ('%20s' + '%12s' * 6) % ('Class', 'Images', 'Targets', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
     for _, imgs, targets in tqdm.tqdm(dataloader, desc="Validating"):
         # for batch_i, (img, targets, paths, shapes) in enumerate(tqdm(dataloader, desc=s)):
         # Extract labels
@@ -191,16 +191,7 @@ def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw, img_siz
         sample_metrics.extend(
             get_batch_statistics(outputs, targets, iou_threshold=iou_thres)
         )
-        # Image plotting
-        # Plot
-        # if args.evaluation_interval % epoch == 0 and args.verbose:
-        if draw:
-            f = f'{img_log_path}/eval_epoch_{epoch}.jpg'  # filename
-            plot_images(images=imgs, targets=targets, paths=img_log_path, fname=f)
-        # These lines are for Tensorboard image implementation
-        #    # if tb_writer:
-        #    #     tb_writer.add_image(f, result, dataformats='HWC', global_step=epoch)
-        #    #     tb_writer.add_graph(model, imgs)  # add model to tensorboard
+
 
         # Confusion matrix
         confusion_matrix.generate_batch_data(outputs, targets)

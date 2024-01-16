@@ -3,7 +3,7 @@
 # Author: Juha-Matti Rouvinen
 # Date: 2023-07-02
 # Updated: 2024-01-05
-# Version V3.2
+# Version V3.2A
 ##################################
 import csv
 import matplotlib
@@ -89,7 +89,7 @@ def img_writer_training(iou_loss, obj_loss, cls_loss, loss, lr, batch_loss,itera
     fig.savefig(filename+'_training_metrics.png')
     # displaying the title
     plt.title(filename)
-    #plt.close('all')
+    plt.close('all')
     # https://github.com/matplotlib/mplfinance/issues/386 -> failed to allocate bitmap
     fig.clf()
 
@@ -124,6 +124,7 @@ def img_writer_class_dist(weights,classes,values, header,filename):
     #plt.close('all')
     '''
     fig.savefig(f'{filename}/{header}_for_dataset.png')
+    plt.close('all')
     fig.clf()
 
 
@@ -180,7 +181,7 @@ def img_writer_evaluation(precision, recall, mAP, f1, ckpt_fitness,train_fitness
     #ax_array[1, 2].set_ybound([0, 10])
 
     fig.savefig(filename+'_evaluation_metrics.png')
-    #plt.close('all')
+    plt.close('all')
     fig.clf()
 
 
@@ -202,7 +203,7 @@ def img_writer_eval_stats(classes,ap,filename):
     fig.savefig(filename + '_evaluation_statistics.png')
     # displaying the title
     plt.title(filename)
-    #plt.close('all')
+    plt.close('all')
     fig.clf()
 
 
@@ -223,7 +224,7 @@ def img_writer_losses(train_loss, eval_loss, epoch, filename):
     plt.plot(x, eval_loss)
 
     fig.savefig(filename + '_train_eval_losses.png')
-    #plt.close('all')
+    plt.close('all')
     fig.clf()
 
 

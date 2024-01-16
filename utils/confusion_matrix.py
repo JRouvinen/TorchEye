@@ -114,8 +114,8 @@ class ConfusionMatrix:
         ax.set_ylabel('Predicted')
         ax.set_title('Confusion Matrix')
         fig.savefig(f'{save_dir}/confusion_matrix_last.png', dpi=250)
-        #plt.close(fig)
-        #plt.close('all')
+        plt.close(fig)
+        plt.close('all')
         fig.clf()
 
 

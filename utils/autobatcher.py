@@ -103,7 +103,8 @@ def autobatch(model, imagesize=640, fraction=0.8, batch_size=16):
 
     # Profile batch sizes
     #batch_sizes = [1, 2, 4, 8, 16]
-    batch_sizes = [1, 2, 4, 8, 16, 32, 64]
+    #batch_sizes = [1, 2, 4, 8, 16, 32, 64]
+    batch_sizes = [1, 2, 4, 8, 16, 32]
 
     try:
         img = [torch.empty(b, 3, imagesize, imagesize) for b in batch_sizes]
