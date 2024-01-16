@@ -3,7 +3,7 @@
 # Author: Juha-Matti Rouvinen
 # Date: 2023-07-02
 # Updated: 2024-01-16
-# Version V1.2
+# Version V1.3
 ##################################
 
 from __future__ import division
@@ -195,7 +195,7 @@ def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw, img_siz
         # Plot
         # if args.evaluation_interval % epoch == 0 and args.verbose:
         if draw:
-            f = f'{img_log_path}/images/eval_epoch_{epoch}.jpg'  # filename
+            f = f'{img_log_path}/eval_epoch_{epoch}.jpg'  # filename
             plot_images(images=imgs, targets=targets, paths=img_log_path, fname=f)
         # These lines are for Tensorboard image implementation
         #    # if tb_writer:

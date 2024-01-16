@@ -3,20 +3,24 @@ import random
 from pathlib import Path
 
 import cv2
-import torch
-import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt
-from utils.datasets_v2 import xywh2xyxy, xyxy2xywh
+import numpy as np
+import torch
 from PIL import Image
 
+from utils.datasets_v2 import xywh2xyxy
 
-def color_list():
+
+def color_list(): #Based on https://github.com/WongKinYiu/PyTorch_YOLOv4/blob/master/utils/plots.py
     # Return first 10 plt colors as (r,g,b) https://stackoverflow.com/questions/51350872/python-from-color-name-to-rgb
-    def hex2rgb(h):
-        return tuple(int(h[1 + i:1 + i + 2], 16) for i in (0, 2, 4))
-
-    return [hex2rgb(h) for h in plt.rcParams['axes.prop_cycle'].by_key()['color']]
-
+    # Bug -> call fails at second time it is called
+    #def hex2rgb(h):
+    #    return tuple(int(h[1 + i:1 + i + 2], 16) for i in (0, 2, 4))
+    #
+    #return [hex2rgb(h) for h in plt.rcParams['axes.prop_cycle'].by_key()['color']]
+    list = [(31, 119, 180), (255, 127, 14), (44, 160, 44), (214, 39, 40), (148, 103, 189), (140, 86, 75), (227, 119, 194), (127, 127, 127), (188, 189, 34), (23, 190, 207)]
+    return list
 def plot_one_box(x, img, color=None, label=None, line_thickness=None):
     # Plots one bounding box on image img
     tl = line_thickness or round(0.002 * (img.shape[0] + img.shape[1]) / 2) + 1  # line/font thickness
