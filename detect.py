@@ -3,7 +3,8 @@
 # detect.py
 # Author: Juha-Matti Rouvinen
 # Date: 2023-07-02
-# Version V1
+# Updated: 2024-01-16
+# Version V2
 ##################################
 from __future__ import division
 

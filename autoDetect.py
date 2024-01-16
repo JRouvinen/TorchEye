@@ -1,7 +1,11 @@
+#################################
+# autoDetect.py
+# Author: Juha-Matti Rouvinen
+# Date: 2023-10-22
+# Updated: 2024-01-12
+# Version V2
+##################################
 import json
-#import paramiko
-#import time
-#import os
 import time
 import glob
 import os

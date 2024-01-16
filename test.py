@@ -1,4 +1,10 @@
-#! /usr/bin/env python3
+#################################
+# test.py
+# Author: Juha-Matti Rouvinen
+# Date: 2023-07-02
+# Updated: 2024-01-16
+# Version V1.2
+##################################
 
 from __future__ import division
 
@@ -55,7 +61,7 @@ def evaluate_model_file(model_path, weights_path, img_path, class_names, batch_s
         gpu = -1
     dataloader = _create_validation_data_loader(
         img_path, batch_size, img_size, n_cpu)
-    model = load_model(model_path, gpu,weights_path)
+    model = load_model(model_path, gpu, weights_path)
 
     metrics_output = _evaluate(
         model,
@@ -83,6 +89,7 @@ def print_eval_stats(metrics_output, class_names, verbose):
     else:
         print("---- mAP not measured (no detections found by model) ----")
 
+
 def clip_boxes(boxes, shape):
     # Clip boxes (xyxy) to image shape (height, width)
     if isinstance(boxes, torch.Tensor):  # faster individually
@@ -93,6 +100,7 @@ def clip_boxes(boxes, shape):
     else:  # np.array (faster grouped)
         boxes[..., [0, 2]] = boxes[..., [0, 2]].clip(0, shape[1])  # x1, x2
         boxes[..., [1, 3]] = boxes[..., [1, 3]].clip(0, shape[0])  # y1, y2
+
 
 def scale_boxes(img1_shape, boxes, img0_shape, ratio_pad=None):
     # Rescale boxes (xyxy) from img1_shape to img0_shape
@@ -109,7 +117,9 @@ def scale_boxes(img1_shape, boxes, img0_shape, ratio_pad=None):
     clip_boxes(boxes, img0_shape)
     return boxes
 
-def _evaluate(model, dataloader, class_names, img_log_path,img_size, iou_thres, conf_thres, nms_thres, verbose, device,):
+
+def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw, img_size, iou_thres, conf_thres, nms_thres,
+              verbose, device, ):
     """Evaluate model on validation dataset.
 
     :param model: Model to evaluate
@@ -134,24 +144,23 @@ def _evaluate(model, dataloader, class_names, img_log_path,img_size, iou_thres, 
     """
     # Performance improved version - 0.3.9
     model.eval()  # Set model to evaluation mode
-    
+
     if not isinstance(model, torch.nn.Module):
         raise ValueError("model must be an instance of torch.nn.Module")
 
     if not isinstance(dataloader, torch.utils.data.DataLoader):
         raise ValueError("dataloader must be an instance of torch.utils.data.DataLoader")
-    
+
     if not device.type in ["cuda", "cpu"]:
         raise ValueError("Invalid device type")
-    
+
     if device.type == "cuda" and not torch.cuda.is_available():
         raise ValueError("CUDA is not available")
-    
+
     if device.type == "cuda":
         Tensor = torch.cuda.FloatTensor
     else:
         Tensor = torch.FloatTensor
-
 
     labels = []
     sample_metrics = []  # List of tuples (TP, confs, pred)
@@ -160,7 +169,7 @@ def _evaluate(model, dataloader, class_names, img_log_path,img_size, iou_thres, 
     p, r, f1, mp, mr, map50, map, t0, t1 = 0., 0., 0., 0., 0., 0., 0., 0., 0.
     s = ('%20s' + '%12s' * 6) % ('Class', 'Images', 'Targets', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
     for _, imgs, targets in tqdm.tqdm(dataloader, desc="Validating"):
-    #for batch_i, (img, targets, paths, shapes) in enumerate(tqdm(dataloader, desc=s)):
+        # for batch_i, (img, targets, paths, shapes) in enumerate(tqdm(dataloader, desc=s)):
         # Extract labels
         labels += targets[:, 1].tolist()
         # Rescale target
@@ -182,23 +191,24 @@ def _evaluate(model, dataloader, class_names, img_log_path,img_size, iou_thres, 
         sample_metrics.extend(
             get_batch_statistics(outputs, targets, iou_threshold=iou_thres)
         )
-        #Image plotting
+        # Image plotting
         # Plot
         # if args.evaluation_interval % epoch == 0 and args.verbose:
         if draw:
-            f = f'{img_log_path}/images/train_batch{integ_batch_num}.jpg'  # filename
+            f = f'{img_log_path}/images/eval_epoch_{epoch}.jpg'  # filename
             plot_images(images=imgs, targets=targets, paths=img_log_path, fname=f)
+        # These lines are for Tensorboard image implementation
         #    # if tb_writer:
         #    #     tb_writer.add_image(f, result, dataformats='HWC', global_step=epoch)
         #    #     tb_writer.add_graph(model, imgs)  # add model to tensorboard
-        #Confusion matrix
+
+        # Confusion matrix
         confusion_matrix.generate_batch_data(outputs, targets)
-        confusion_matrix.plot(True,img_log_path,class_names)
+        confusion_matrix.plot(True, img_log_path, class_names)
 
     if len(sample_metrics) == 0:  # No detections over whole validation set.
         print("---- No detections over whole validation set ----")
         return None
-
 
     # Compute statistics
     '''
@@ -218,8 +228,8 @@ def _evaluate(model, dataloader, class_names, img_log_path,img_size, iou_thres, 
     metrics_output = ap_per_class(true_positives, pred_scores, pred_labels, labels)
     print_eval_stats(metrics_output, class_names, verbose)
     # Print speeds
-    #t = tuple(x / seen * 1E3 for x in (t0, t1, t0 + t1)) + (img_size, img_size, batch_size)  # tuple
-    #print('Speed: %.1f/%.1f/%.1f ms inference/NMS/total per %gx%g image at batch-size %g' % t)
+    # t = tuple(x / seen * 1E3 for x in (t0, t1, t0 + t1)) + (img_size, img_size, batch_size)  # tuple
+    # print('Speed: %.1f/%.1f/%.1f ms inference/NMS/total per %gx%g image at batch-size %g' % t)
     return metrics_output, outputs, targets
 
 
@@ -248,14 +258,17 @@ def _create_validation_data_loader(img_path, batch_size, img_size, n_cpu):
         collate_fn=dataset.collate_fn)
     return dataloader
 
+
 def run():
     date = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
     ver = "0.3.15"
-    #print_environment_info()
+    # print_environment_info()
     print_environment_info(ver, "logs/" + date + "_log" + ".txt")
     parser = argparse.ArgumentParser(description="Evaluate validation data.")
-    parser.add_argument("-m", "--model", type=str, default="config/yolov3.cfg", help="Path to model definition file (.cfg)")
-    parser.add_argument("-w", "--weights", type=str, default="weights/yolov3.weights", help="Path to weights or checkpoint file (.weights or .pth)")
+    parser.add_argument("-m", "--model", type=str, default="config/yolov3.cfg",
+                        help="Path to model definition file (.cfg)")
+    parser.add_argument("-w", "--weights", type=str, default="weights/yolov3.weights",
+                        help="Path to weights or checkpoint file (.weights or .pth)")
     parser.add_argument("-d", "--data", type=str, default="config/coco.data", help="Path to data config file (.data)")
     parser.add_argument("-b", "--batch_size", type=int, default=8, help="Size of each image batch")
     parser.add_argument("-v", "--verbose", action='store_true', help="Makes the validation more verbose")

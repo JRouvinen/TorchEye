@@ -1019,12 +1019,15 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                     validation_dataloader,
                     class_names,
                     model_imgs_logs_path,
+                    epoch,
+                    args.draw,
                     img_size=model.hyperparams['height'],
                     iou_thres=args.iou_thres,
                     conf_thres=args.conf_thres,
                     nms_thres=args.nms_thres,
                     verbose=args.verbose,
                     device=device,
+
                 )
 
 

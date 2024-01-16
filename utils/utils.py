@@ -2,7 +2,8 @@
 # utils.py
 # Author: Juha-Matti Rouvinen
 # Date: 2023-11-10
-# Version V4
+# Updated: 2024-01-16
+# Version V5
 ##################################
 
 from __future__ import division

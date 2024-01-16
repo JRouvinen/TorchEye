@@ -3,7 +3,7 @@
 # Author: Juha-Matti Rouvinen
 # Date: 2023-09-22
 # Updated: 2024-01-12
-#
+# Version V2
 ##################################
 
 def parse_model_config_and_hyperparams(path,hyp):

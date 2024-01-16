@@ -2,7 +2,8 @@
 # writer.py
 # Author: Juha-Matti Rouvinen
 # Date: 2023-07-02
-# Version V3.1
+# Updated: 2024-01-05
+# Version V3.2
 ##################################
 import csv
 import matplotlib
