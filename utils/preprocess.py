@@ -1,14 +1,14 @@
 from __future__ import division
 
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from torch.autograd import Variable
+#import torch.nn as nn
+#import torch.nn.functional as F
+#from torch.autograd import Variable
 import numpy as np
 import cv2
-import matplotlib.pyplot as plt
-from utils.video_utils import count_parameters as count
-from utils.video_utils import convert2cpu as cpu
+#import matplotlib.pyplot as plt
+#from utils.video_utils import count_parameters as count
+#from utils.video_utils import convert2cpu as cpu
 from PIL import Image, ImageDraw
 
 

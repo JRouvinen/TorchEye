@@ -1,14 +1,25 @@
 # YOLO v3 Video Detection Module
 
-# This code implements an object detection module using YOLO v3. It takes a video as input and detects objects in each frame of the video. The detected objects are then annotated with bounding boxes and class labels. The annotated frames are displayed in real-time.
+# This code implements an object detection module using YOLO v3. It takes a video as input and detects objects in
+# each frame of the video. The detected objects are then annotated with bounding boxes and class labels.
+# The annotated frames are displayed in real-time.
 
-# The code first imports the required libraries and defines some utility functions. It then parses the command-line arguments to get the input video file, confidence threshold, NMS threshold, YOLO configuration file, YOLO weights file, and input resolution. It also loads the class labels and assigns colors to each class.
+# The code first imports the required libraries and defines some utility functions.
+# It then parses the command-line arguments to get the input video file, confidence threshold, NMS threshold,
+# YOLO configuration file, YOLO weights file, and input resolution.
+# It also loads the class labels and assigns colors to each class.
 
-# The YOLO model is loaded and the video capture is initialized. The code then processes each frame of the video. For every 'frame_hop' frames, the frame is preprocessed and input to the YOLO model for object detection. The detected objects are filtered based on the confidence threshold and NMS threshold. The filtered objects are then annotated with bounding boxes and class labels. The annotated frame is displayed in real-time.
+# The YOLO model is loaded and the video capture is initialized. The code then processes each frame of the video.
+# For every 'frame_hop' frames, the frame is preprocessed and input to the YOLO model for object detection.
+# The detected objects are filtered based on the confidence threshold and NMS threshold.
+# The filtered objects are then annotated with bounding boxes and class labels.
+# The annotated frame is displayed in real-time.
 
-# The code calculates the frames per second (FPS) and displays it in the console. The video processing continues until the end of the video or the 'q' key is pressed.
+# The code calculates the frames per second (FPS) and displays it in the console.
+# The video processing continues until the end of the video or the 'q' key is pressed.
 
 # The code is written in Python and requires the following libraries: torch, numpy, opencv-python, pandas, argparse.
+# Based on https://github.com/ayooshkathuria/YOLO_v3_tutorial_from_scratch/blob/master/util.py implementation
 
 from __future__ import division
 import time
@@ -19,18 +30,20 @@ import numpy as np
 import cv2
 
 from utils.parse_config import parse_hyp_config
-from utils.video_utils import *
+from utils.utils import load_classes
 from models import Darknet, load_model
-from utils.preprocess import prep_image, inp_to_image, letterbox_image
-import pandas as pd
-import random
-import pickle as pkl
+#from utils.preprocess import prep_image, inp_to_image, letterbox_image
+from utils.preprocess import letterbox_image
+
+#import pandas as pd
+#import random
+#import pickle as pkl
 import argparse
 from detect import detect_image, draw_and_save_return_image
 
 # YOLO configuration
 
-ver = "0.2"
+ver = "0.3"
 colors = [
         (0, 0, 255),  # Red
         (0, 255, 0),  # Green
@@ -135,8 +148,8 @@ def arg_parse():
                         default="video.avi", type=str)
     parser.add_argument("-cl", "--classes", dest="classes", help="Classes file", default="data/coco.names")
     parser.add_argument("-conf", "--confidence", dest="confidence", help="Object Confidence to filter predictions",
-                        default=0.3)
-    parser.add_argument("-nms", "--nms_thresh", dest="nms_thresh", help="NMS Threshhold", default=0.3)
+                        default=0.5)
+    parser.add_argument("-nms", "--nms_thresh", dest="nms_thresh", help="NMS Threshhold", default=0.5)
     parser.add_argument("-c", "--cfg", dest='cfgfile', help=
     "Config file",
                         default="cfg/yolov3.cfg", type=str)
