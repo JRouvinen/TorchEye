@@ -1,0 +1,90 @@
+Orion-tiny_832_v4_exp12
+
+Command line arguments: Namespace(model='.\\data\\Orion-tiny_v2.cfg', 
+weights='.\\weights\\Orion-tiny_832_v4_exp12.weights', 
+images='C:\\Users\\Kimiwaha\\AI\\datasets\\speed_test_1\\', 
+classes='.\\data\\Orion_v2.names', hyp='config/hyp.cfg', 
+output='output', batch_size=24, draw=0, img_size=832, n_cpu=4, conf_thres=0.35, nms_thres=0.5, gpu=0)
+
+Elapsed time:  ~52.19098973274231
+NVIDIA GeForce RTX 2060 6GB - Util ~ 95 %
+
+
+
+Command line arguments: Namespace(model='.\\data\\Orion-tiny_v2.cfg', 
+weights='.\\weights\\Orion-tiny_832_v4_exp12.weights', 
+images='C:\\Users\\Kimiwaha\\AI\\datasets\\speed_test_1\\', 
+classes='.\\data\\Orion_v2.names', hyp='config/hyp.cfg', 
+output='output', batch_size=16, draw=0, img_size=832, n_cpu=4, conf_thres=0.35, nms_thres=0.5, gpu=0)
+
+Elapsed time:  ~50.36392259597778
+NVIDIA GeForce RTX 2060 6GB - Util ~ 85 %
+
+
+
+Command line arguments: Namespace(model='.\\data\\Orion-tiny_v2.cfg', 
+weights='.\\weights\\Orion-tiny_832_v4_exp12.weights', 
+images='C:\\Users\\Kimiwaha\\AI\\datasets\\speed_test_1\\', 
+classes='.\\data\\Orion_v2.names', hyp='config/hyp.cfg', 
+output='output', batch_size=8, draw=0, img_size=832, n_cpu=4, conf_thres=0.35, nms_thres=0.5, gpu=0)
+
+Elapsed time:  ~50.4251914024353
+NVIDIA GeForce RTX 2060 6GB - Util ~ 90 %
+
+
+
+Command line arguments: Namespace(model='.\\data\\Orion-tiny_v2.cfg', 
+weights='.\\weights\\Orion-tiny_832_v4_exp12.weights', 
+images='C:\\Users\\Kimiwaha\\AI\\datasets\\speed_test_1\\', 
+classes='.\\data\\Orion_v2.names', hyp='config/hyp.cfg', 
+output='output', batch_size=24, draw=0, img_size=832, n_cpu=4, conf_thres=0.35, nms_thres=0.5, gpu=-1)
+
+Elapsed time:  427.65193939208984
+CPU 11th Gen i7-1165G7
+
+--------------------------------------------------------------------------------------------------------
+Lyra-tiny_800
+
+
+Command line arguments: Namespace(model='.\\data\\Orion-tiny.cfg', 
+weights='.\\weights\\Lyra-tiny_800.weights', 
+images='C:\\Users\\Kimiwaha\\AI\\datasets\\speed_test_1\\', 
+classes='.\\data\\Orion_v2.names', hyp='config/hyp.cfg', 
+output='output', batch_size=24, draw=0, img_size=832, n_cpu=4, conf_thres=0.35, nms_thres=0.5, gpu=0)
+
+Elapsed time:  ~49.40724468231201
+NVIDIA GeForce RTX 2060 6GB - Util ~ 80 %
+
+
+Command line arguments: Namespace(model='.\\data\\Orion-tiny.cfg', 
+weights='.\\weights\\Lyra-tiny_800.weights', 
+images='C:\\Users\\Kimiwaha\\AI\\datasets\\speed_test_1\\', 
+classes='.\\data\\Orion_v2.names', hyp='config/hyp.cfg', 
+output='output', batch_size=16, draw=0, img_size=832, n_cpu=4, conf_thres=0.35, nms_thres=0.5, gpu=0)
+
+Elapsed time:  ~47.64203333854675
+NVIDIA GeForce RTX 2060 6GB - Util ~ 75 %
+
+
+
+Command line arguments: Namespace(model='.\\data\\Orion-tiny.cfg', 
+weights='.\\weights\\Lyra-tiny_800.weights', 
+images='C:\\Users\\Kimiwaha\\AI\\datasets\\speed_test_1\\', 
+classes='.\\data\\Orion_v2.names', hyp='config/hyp.cfg', 
+output='output', batch_size=8, draw=0, img_size=832, n_cpu=4, conf_thres=0.35, nms_thres=0.5, gpu=0)
+
+Elapsed time:  49.38762974739075
+NVIDIA GeForce RTX 2060 6GB - Util ~ 85 %
+
+--------------------------------------------------------------------------------------------------------
+Autodetect results
+2000 images
+Elapsed time:  83.23368906974792
+NVIDIA GeForce RTX 2060 6GB - Util ~ 30 %
+
+After optimization (batch_size 16)
+
+2000 images
+Elapsed time:  46.77700901031494
+NVIDIA GeForce RTX 2060 6GB - Util ~ 80 %
+
