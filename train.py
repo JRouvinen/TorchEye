@@ -91,7 +91,7 @@ from utils.autobatcher import check_train_batch_size
 from utils.logger import Logger
 from utils.utils import (to_cpu, load_classes, print_environment_info, provide_determinism,
                          worker_seed_set, one_cycle, check_img_size,
-                         labels_to_image_weights, labels_to_class_weights, tensor_to_np_array)
+                         labels_to_image_weights, labels_to_class_weights, tensor_to_np_array, check_git_status)
 from utils.datasets import ListDataset
 from utils.augmentations import AUGMENTATION_TRANSFORMS
 from utils.parse_config import parse_data_config, parse_hyp_config
@@ -174,13 +174,13 @@ def check_folders():
     if not logs_path_there:
         os.mkdir(local_path + "/logs/profiles/")
     # Check if checkpoints folder exists
-    ckpt_path_there = os.path.exists(local_path + "/checkpoints/")
-    if not ckpt_path_there:
-        os.mkdir(local_path + "/checkpoints/")
+    #ckpt_path_there = os.path.exists(local_path + "/checkpoints/")
+    #if not ckpt_path_there:
+    #    os.mkdir(local_path + "/checkpoints/")
     # Check if checkpoints/best folder exists
-    ckpt_best_path_there = os.path.exists(local_path + "/checkpoints/best/")
-    if not ckpt_best_path_there:
-        os.mkdir(local_path + "/checkpoints/best/")
+    #ckpt_best_path_there = os.path.exists(local_path + "/checkpoints/best/")
+    #if not ckpt_best_path_there:
+    #    os.mkdir(local_path + "/checkpoints/best/")
     # Check if output folder exists
     output_path_there = os.path.exists(local_path + "/output/")
     if not output_path_there:
@@ -336,8 +336,8 @@ def run(args, data_config, hyp_config, ver, clearml=None):
         csv_writer(header, model_logs_path + "/" + model_name + "_evaluation_plots.csv", 'a')
 
         # Create validation csv file
-        header = ['Index', 'Class', 'AP']
-        csv_writer(header, f"checkpoints/best/{model_name}_eval_stats.csv", 'a')
+        #header = ['Index', 'Class', 'AP']
+        #csv_writer(header, f"checkpoints/best/{model_name}_eval_stats.csv", 'a')
         '''
         346-430
         This code is used for training a model. It includes the following steps:
@@ -635,11 +635,11 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                 scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=float(hyp_config['dec_gamma']),
                                                                    verbose=False)
             elif req_scheduler == 'ReduceLROnPlateau':
-                minimum_lr = float(hyp_config['lr0']) / float(hyp_config['lrf'])
+                minimum_lr = float(hyp_config['lr0']) * float(hyp_config['lrf'])
                 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
                     optimizer,
                     'min',
-                    patience=int(args.epochs / 10),
+                    patience=int(args.evaluation_interval),
                     min_lr=minimum_lr,
                     verbose=False)
             elif req_scheduler == 'ConstantLR':
@@ -648,7 +648,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                                                                 verbose=False)
             elif req_scheduler == 'CyclicLR':
                 scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer,
-                                                              base_lr=float(hyp_config['lr0']) / float(
+                                                              base_lr=float(hyp_config['lr0']) * float(
                                                                   hyp_config['lrf']),
                                                               max_lr=float(hyp_config['lr0']), cycle_momentum=True,
                                                               verbose=False,
@@ -665,7 +665,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                 lf = one_cycle(1, float(hyp_config['lrf']), args.epochs)  # cosine 1->hyp['lrf']
                 scheduler = torch.optim.lr_scheduler.MultiplicativeLR(optimizer, lr_lambda=lf)
             elif req_scheduler == 'StepLR':
-                scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=int(args.epochs) / 10,
+                scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=int(args.evaluation_interval),
                                                             gamma=0.1)  # Step size -> epochs
             elif req_scheduler == 'MultiStepLR':
                 scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[30, 80],
@@ -679,7 +679,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
             elif req_scheduler == 'CosineAnnealingWarmRestarts':
                 scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=int(num_steps / 10),
                                                                                  eta_min=float(
-                                                                                     hyp_config['lr0']) / float(
+                                                                                     hyp_config['lr0']) * float(
                                                                                      hyp_config[
                                                                                          'lrf']))  # total_iters size -> epochs
         else:
@@ -1149,7 +1149,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                                 ]
                         csv_writer(data, f"{model_logs_path}/{model_name}_eval_stats.csv", 'a')
                         img_writer_eval_stats(eval_stats_class_array, eval_stats_ap_array,
-                                              f"checkpoints/best/{model_name}")
+                                              f"{model_imgs_logs_path}/{model_name}")
                         # ############
                         # ClearML csv reporter logger - V0.3.8
                         # ############
@@ -1232,7 +1232,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
 
 
 if __name__ == "__main__":
-    ver = "0.4.9"
+    ver = "0.4.10"
     # Check folders
     check_folders()
     parser = argparse.ArgumentParser(description="Trains the YOLOv3 model.")
@@ -1294,6 +1294,7 @@ if __name__ == "__main__":
         clearml_cfg = configparser.ConfigParser()
         # Read the config file
         clearml_cfg.read(r'config/clearml.cfg')
+    check_git_status()
     run(args, data_config, hyp_config, ver, clearml_cfg)
 
 # python train.py -m config/yolov3_ITDM_simple.cfg -d config/Nova.data

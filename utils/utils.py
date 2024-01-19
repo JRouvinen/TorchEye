@@ -3,7 +3,7 @@
 # Author: Juha-Matti Rouvinen
 # Date: 2023-11-10
 # Updated: 2024-01-16
-# Version V5
+# Version V6
 ##################################
 
 from __future__ import division
@@ -22,10 +22,23 @@ import numpy as np
 import subprocess
 import random
 import imgaug as ia
+import platform
 
 from utils.loss import compute_loss
 from utils.writer import log_file_writer, img_writer_class_dist
 
+
+def check_git_status():
+    os_platform = platform.platform()
+    local_path = os.getcwd()
+    # Check if logs folder exists
+    git_path_there = os.path.exists(local_path + "/.git/")
+    if git_path_there:
+        s = subprocess.check_output('git status -uno', shell=True).decode('utf-8')
+    if 'Your branch is behind' in s:
+        print(s[s.find('---- Your branch is behind'):s.find('\n\n')] + '----\n')
+    else:
+        print('---- Your branch is up to date----\n')
 
 def get_local_path():
     return os.getcwd()
