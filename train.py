@@ -639,7 +639,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
                     optimizer,
                     'min',
-                    patience=int(args.evaluation_interval),
+                    patience=int(args.evaluation_interval)*10,
                     min_lr=minimum_lr,
                     verbose=False)
             elif req_scheduler == 'ConstantLR':
