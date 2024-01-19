@@ -3,7 +3,7 @@
 # Author: Juha-Matti Rouvinen
 # Date: 2023-07-02
 # Updated: 2024-01-05
-# Version V3.2A
+# Version V3.3
 ##################################
 import csv
 import matplotlib
@@ -37,6 +37,12 @@ def img_writer_training(iou_loss, obj_loss, cls_loss, loss, lr, batch_loss,itera
     ax_array[0, 0].set_ylabel('IoU loss')
     #ax_array[0, 0].plot(x, iou_loss, marker = 'o')
     ax_array[0, 0].plot(x, iou_loss)
+    if np.mean(iteration) >= 5:
+        #calculate equation for trendline
+        z = np.polyfit(x,iou_loss,1)
+        p = np.poly1d(z)
+        #add trendline plot
+        ax_array[0,0].plot(x, p(x))
     #ax_array[0, 0].grid(axis='y', linestyle='-')
     ax_array[0, 0].grid(True)
     ax_array[0, 0].set_xlabel('Iteration')
@@ -45,24 +51,42 @@ def img_writer_training(iou_loss, obj_loss, cls_loss, loss, lr, batch_loss,itera
     ax_array[0, 1].set_ylabel('Object loss')
     #ax_array[0, 1].plot(x, obj_loss, marker = 'o')
     ax_array[0, 1].plot(x, obj_loss)
+    if np.mean(iteration) >= 5:
+        #calculate equation for trendline
+        z = np.polyfit(x,obj_loss,1)
+        p = np.poly1d(z)
+        #add trendline plot
+        ax_array[0,1].plot(x, p(x))
     #ax_array[0, 1].grid(axis='y', linestyle='-')
-    ax_array[0, 0].grid(True)
+    ax_array[0, 1].grid(True)
     ax_array[0, 1].set_xlabel('Iteration')
 
     # Plot for cls loss
     ax_array[0, 2].set_ylabel('Class loss')
     #ax_array[0, 2].plot(x, cls_loss, marker = 'o')
     ax_array[0, 2].plot(x, cls_loss)
+    if np.mean(iteration) >= 5:
+        #calculate equation for trendline
+        z = np.polyfit(x,cls_loss,1)
+        p = np.poly1d(z)
+        #add trendline plot
+        ax_array[0,2].plot(x, p(x))
     #ax_array[0, 2].grid(axis='y', linestyle='-')
-    ax_array[0, 0].grid(True)
+    ax_array[0, 2].grid(True)
     ax_array[0, 2].set_xlabel('Iteration')
 
     # Plot for loss
     ax_array[1, 0].set_ylabel('Loss')
     #ax_array[1, 0].plot(x, loss, marker = 'o')
     ax_array[1, 0].plot(x, loss)
+    if np.mean(iteration) >= 5:
+        #calculate equation for trendline
+        z = np.polyfit(x,loss,1)
+        p = np.poly1d(z)
+        #add trendline plot
+        ax_array[1,0].plot(x, p(x))
     #ax_array[1, 0].grid(axis='y', linestyle='-')
-    ax_array[0, 0].grid(True)
+    ax_array[1, 0].grid(True)
     ax_array[1, 0].set_xlabel('Iteration')
 
     # Plot for learning rate
@@ -70,7 +94,7 @@ def img_writer_training(iou_loss, obj_loss, cls_loss, loss, lr, batch_loss,itera
     #ax_array[1, 1].plot(x, lr, marker = 'o')
     ax_array[1, 1].plot(x, lr)
     # https://stackoverflow.com/questions/21393802/how-to-specify-values-on-y-axis-of-a-matplotlib-plot
-    ax_array[0, 0].grid(True)
+    ax_array[1, 1].grid(True)
     ax_array[1, 1].get_autoscaley_on()
     ax_array[1, 1].invert_yaxis()
     if np.mean(iteration) >= 30*(np.min(iteration)+10):
@@ -82,8 +106,14 @@ def img_writer_training(iou_loss, obj_loss, cls_loss, loss, lr, batch_loss,itera
     ax_array[1, 2].set_ylabel('Batch loss')
     #ax_array[1, 2].plot(x, batch_loss, marker='o')
     ax_array[1, 2].plot(x, batch_loss)
+    if np.mean(iteration) >= 5:
+        #calculate equation for trendline
+        z = np.polyfit(x,batch_loss,1)
+        p = np.poly1d(z)
+        #add trendline plot
+        ax_array[1,2].plot(x, p(x))
     #ax_array[1, 2].grid(axis='y', linestyle='-')
-    ax_array[0, 0].grid(True)
+    ax_array[1, 2].grid(True)
     ax_array[1, 2].set_xlabel('Iteration')
 
     fig.savefig(filename+'_training_metrics.png')
@@ -140,6 +170,12 @@ def img_writer_evaluation(precision, recall, mAP, f1, ckpt_fitness,train_fitness
     # Plot for precision
     ax_array[0, 0].set_ylabel('Precision')
     ax_array[0, 0].plot(x, precision)
+    if np.mean(epoch) >= 5:
+        #calculate equation for trendline
+        z = np.polyfit(x,precision,1)
+        p = np.poly1d(z)
+        #add trendline plot
+        ax_array[0,0].plot(x, p(x))
     ax_array[0, 0].grid(axis='y', linestyle='-')
     #ax_array[0, 0].invert_yaxis()
     ax_array[0, 0].set_xlabel('Epoch')
@@ -148,6 +184,12 @@ def img_writer_evaluation(precision, recall, mAP, f1, ckpt_fitness,train_fitness
     # Plot for recall
     ax_array[0, 1].set_ylabel('Recall')
     ax_array[0, 1].plot(x, recall)
+    if np.mean(epoch) >= 5:
+        #calculate equation for trendline
+        z = np.polyfit(x,recall,1)
+        p = np.poly1d(z)
+        #add trendline plot
+        ax_array[0,1].plot(x, p(x))
     ax_array[0, 1].grid(axis='y', linestyle='-')
     ax_array[0, 1].set_xlabel('Epoch')
     #ax_array[0, 1].set_ybound([0, 1])
@@ -155,6 +197,12 @@ def img_writer_evaluation(precision, recall, mAP, f1, ckpt_fitness,train_fitness
     # Plot for f1
     ax_array[0, 2].set_ylabel('F1')
     ax_array[0, 2].plot(x, f1)
+    if np.mean(epoch) >= 5:
+        #calculate equation for trendline
+        z = np.polyfit(x,f1,1)
+        p = np.poly1d(z)
+        #add trendline plot
+        ax_array[0,2].plot(x, p(x))
     ax_array[0, 2].grid(axis='y', linestyle='-')
     ax_array[0, 2].set_xlabel('Epoch')
     # ax_array[1, 0].set_ybound([0, 1])
@@ -162,6 +210,12 @@ def img_writer_evaluation(precision, recall, mAP, f1, ckpt_fitness,train_fitness
     # Plot for mAP
     ax_array[1, 0].set_ylabel('mAP')
     ax_array[1, 0].plot(x, mAP)
+    if np.mean(epoch) >= 5:
+        #calculate equation for trendline
+        z = np.polyfit(x,mAP,1)
+        p = np.poly1d(z)
+        #add trendline plot
+        ax_array[1,0].plot(x, p(x))
     ax_array[1, 0].grid(axis='y', linestyle='-')
     ax_array[1, 0].set_xlabel('Epoch')
     #ax_array[0, 2].set_ybound([0, 1])
@@ -169,6 +223,12 @@ def img_writer_evaluation(precision, recall, mAP, f1, ckpt_fitness,train_fitness
     # Plot for train fitness
     ax_array[1, 1].set_ylabel('Train FITNESS')
     ax_array[1, 1].plot(x, train_fitness)
+    if np.mean(epoch) >= 5:
+        #calculate equation for trendline
+        z = np.polyfit(x,train_fitness,1)
+        p = np.poly1d(z)
+        #add trendline plot
+        ax_array[1,1].plot(x, p(x))
     ax_array[1, 1].grid(axis='y', linestyle='-')
     ax_array[1, 1].set_xlabel('Epoch')
     #ax_array[1, 1].set_ybound([-1, ])
@@ -176,6 +236,12 @@ def img_writer_evaluation(precision, recall, mAP, f1, ckpt_fitness,train_fitness
     # Plot for ckpt fitness
     ax_array[1, 2].set_ylabel('CKPT FITNESS')
     ax_array[1, 2].plot(x, ckpt_fitness)
+    if np.mean(epoch) >= 5:
+        #calculate equation for trendline
+        z = np.polyfit(x,ckpt_fitness,1)
+        p = np.poly1d(z)
+        #add trendline plot
+        ax_array[1,2].plot(x, p(x))
     ax_array[1, 2].grid(axis='y', linestyle='-')
     ax_array[1, 2].set_xlabel('Epoch')
     #ax_array[1, 2].set_ybound([0, 10])
