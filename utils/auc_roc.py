@@ -1,0 +1,180 @@
+#################################
+# auc_roc.py
+# Author: Juha-Matti Rouvinen
+# Date: 2024-01-24
+# Updated: 2024-01-24
+# Version V1.0
+# This implementation is based on the code from: https://github.com/haooyuee/YOLOv5-AUC-ROC-MedDetect/
+##################################
+
+#Imports
+import torch
+from torchvision.ops import box_iou
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from pathlib import Path
+
+class AUROC:
+    """ Compute the auroc scores, given the auc for each class.
+    """
+
+    def __init__(self, nc, conf=0.25, iou_thres=0.45):
+        """
+        different thresholds (like prediction confidence, Iou) will have a great impact on the results of AUC.
+        Default: conf=0.25, iou_thres=0.45
+        """
+        self.auc_scores = np.zeros(nc)  # Store the AUROC score for each cls
+        self.nc = nc  # number of cls
+        self.conf = conf  # confidence threshold
+        self.iou_thres = iou_thres  # IoU threshold
+
+        self.pred = [[] for _ in range(nc)]  # list to store model predictions for each class
+        self.true = [[] for _ in range(nc)]  # list to store ground truth labels for each class
+
+        import subprocess
+        subprocess.check_call(['pip', 'install', 'scikit-learn'])
+        subprocess.check_call(['pip', 'install', 'plotly', 'kaleido'])
+
+    def process_batch(self, detections, labels):
+        """
+        Return /
+        Both sets of boxes are expected to be in (x1, y1, x2, y2) format.
+        Arguments:
+            detections (Array[N, 6]), x1, y1, x2, y2, conf, class
+            labels (Array[M, 5]), class, x1, y1, x2, y2
+        Returns:
+            None, updates pred[list] and true[list] accordingly
+        """
+        if detections is None:
+            # If there is no prediction result, all ground truths are considered to be negative samples,
+            # Ignored during calculating auc
+            return
+
+        t = 0
+
+        detections = detections[detections[:, 4] > self.conf]
+        # Filter out prediction db boxes with low confidence (similar to nms)
+        gt_classes = labels[:, 0].int()  # All gt box categories (int) cls, may be repeated
+        detection_classes = detections[:, 5].int()  # All pred box cls (int) categories, may repeat positive + negative
+        iou = box_iou(labels[:, 1:], detections[:, :4])  # # Find the iou of all gt boxes and all pred boxes
+
+        x = torch.where(iou > self.iou_thres)  # Filtered by iou threshold
+
+        if x[0].shape[0]:  # When have iou > iou threshold
+            matches = torch.cat((torch.stack(x, 1), iou[x[0], x[1]][:, None]), 1).cpu().numpy()
+            # cat gt_index+pred_index+iou
+            if x[0].shape[0] > 1:
+                matches = matches[matches[:, 2].argsort()[::-1]]
+                matches = matches[np.unique(matches[:, 1], return_index=True)[1]]
+                matches = matches[matches[:, 2].argsort()[::-1]]
+                matches = matches[np.unique(matches[:, 0], return_index=True)[1]]
+                # finally get the one with the largest iou of each db pred and all db gt (greater than the iou_thres)
+                # Each db gt will only correspond to the only one db pred. The filtered preds are all positive samples _> (tp or fp)
+        else:
+            matches = np.zeros((0, 3))
+
+        n = matches.shape[0] > 0
+        m0, m1, _ = matches.transpose().astype(int)
+        for class_id in range(self.nc):
+            for i, gc in enumerate(gt_classes):
+                if gc == class_id:
+                    j = m0 == i
+                    if n and sum(j) == 1:
+                        if detection_classes[m1[j]] == gc:
+                            # same cls -> True Positive
+                            self.pred[class_id].append(detections[m1[j], 4].item())  # save conf
+                            self.true[class_id].append(1)  # True Positive set 1
+                        else:
+                            # diff cls -> False Positive
+                            self.pred[class_id].append(detections[m1[j], 4].item())  # save conf
+                            self.true[class_id].append(0)  # False Positive set 0
+                        t = t + 1
+                    '''
+                    # Ignored during calculating auc
+                    else:
+                        self.pred[class_id].append(0.0)
+                        self.true[class_id].append(-1)
+                    '''
+
+    def out(self):
+        '''
+        Computes the AUROC score for each category and returns it.
+        '''
+        from sklearn.metrics import roc_auc_score, roc_curve
+        auc_scores = np.zeros(self.nc)
+        fpr_ = [[] for _ in range(self.nc)]
+        tpr_ = [[] for _ in range(self.nc)]
+
+        for class_id in range(self.nc):
+            labels = self.true[class_id]
+            preds = self.pred[class_id]
+            try:
+                fpr_class, tpr_class, _ = roc_curve(labels, preds)
+                auc_scores[class_id] = roc_auc_score(labels, preds)
+                fpr_[class_id] = fpr_class
+                tpr_[class_id] = tpr_class
+
+            except ValueError:
+                # No pred = set auc to 0
+                # print('No pred db for cls ' + str(class_id) + ', Set the auc value to 0 ...')
+                auc_scores[class_id] = 0
+
+        return auc_scores, fpr_, tpr_
+
+    def plot_polar_chart(self, auc_scores, save_dir='', names=()):
+        '''
+        Generate polar_chart for auc scores.
+        auc_scores : [dict] auc_scores
+        names : [list] cls names
+        return None
+        save img at Path(save_dir) / 'polar_chart.png'
+        '''
+        import plotly.graph_objects as go
+        mauc = auc_scores.mean()
+        auc_scores_name = dict(zip(names, auc_scores))
+        auc_scores_name['mAUC'] = mauc
+        df = pd.DataFrame.from_dict(auc_scores_name, orient='index')
+        columns = list(df.index)
+        fig = go.Figure(
+            data=[go.Scatterpolar(r=(df[0] * 100).round(0), fill='toself', name='diseases', theta=columns)],
+            layout=go.Layout(
+                # title=go.layout.Title(text='Class AUC'),
+                polar={
+                    'radialaxis': {
+                        'range': [0, 100],
+                        'tickvals': [0, 25, 50, 75, 100],
+                        'ticktext': ['0%', '25%', '50%', '75%', '100%'],
+                        'visible': True, }},
+                showlegend=True,
+                template='plotly_dark',
+            ),
+        )
+        file_name = Path(save_dir) / 'polar_chart.png'
+        fig.write_image(file_name)
+        # print('plot_polar_chart DONE')
+
+    def plot_auroc_curve(self, fpr_, tpr_, auc_scores, save_dir='', names=()):
+        # AUROC curve
+        fig, ax = plt.subplots(1, 1, figsize=(9, 6), tight_layout=True)
+
+        if 0 < len(names) < 21:  # display per-class legend if < 21 classes
+            for i in range(len(names)):
+                ax.plot(fpr_[i], tpr_[i], linewidth=1, label=f'{names[i]} {auc_scores[i]:.3f}')  # plot(F_PR, T_PR)
+        else:
+            for i in range(len(names)):
+                ax.plot(fpr_[i], tpr_[i], linewidth=1, color='grey')  # plot(F_PR, T_PR)
+
+        ax.plot([0, 1], [0, 1], linestyle='--', color='black', linewidth=1)  # diagonal line
+        ax.set_xlabel('False Positive Rate')
+        ax.set_ylabel('True Positive Rate')
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1)
+        ax.legend(bbox_to_anchor=(1.04, 1), loc='upper left')
+        ax.set_title('AUROC Curve')
+        if save_dir:
+            save_path = Path(save_dir) / 'auroc_curve.png'
+            fig.savefig(save_path, dpi=250)
+            # print(f'Saved AUROC curve at: {save_path}')
+        plt.close(fig)
+        # print('plot_auroc_curve DONE')

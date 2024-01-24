@@ -1021,6 +1021,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                     model_imgs_logs_path,
                     epoch,
                     args.draw,
+                    args.auc_roc,
                     img_size=model.hyperparams['height'],
                     iou_thres=args.iou_thres,
                     conf_thres=args.conf_thres,
@@ -1232,7 +1233,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
 
 
 if __name__ == "__main__":
-    ver = "0.4.10A"
+    ver = "0.4.10A-AUC-ROC"
     # Check folders
     check_folders()
     parser = argparse.ArgumentParser(description="Trains the YOLOv3 model.")
@@ -1260,9 +1261,11 @@ if __name__ == "__main__":
     parser.add_argument("--ema", type=int, default=1,
                         help="Set use of ModelEMA")
     parser.add_argument("--scheduler", type=str, default=None,
-                        help="Set type of scheduler")
+                        help="Set type of scheduler [CosineAnnealingLR, ChainedScheduler, ExponentialLR, "
+                             "ReduceLROnPlateau, ConstantLR, CyclicLR, OneCycleLR, LambdaLR, MultiplicativeLR, "
+                             "StepLR, MultiStepLR, LinearLR, PolynomialLR, CosineAnnealingWarmRestarts]")
     parser.add_argument("--optimizer", type=str, default=None,
-                        help="Set type of optimizer")
+                        help="Set type of optimizer [adamw, sgd, rmsprop, adadelta, adamax, adam]")
     parser.add_argument("--sampler", type=int, default=0,
                         help="Set type of sampler [0 = None, 1 = SequentialSampler, 2 = RandomSampler, "
                              "3 = SubsetRandomSampler, 4 = WeightedRandomSampler, 5 = BatchSampler]")
@@ -1274,6 +1277,8 @@ if __name__ == "__main__":
                         help="Use model training warmup")
     parser.add_argument("--draw", type=bool, default=False,
                         help="Draw evaluation images during training")
+    parser.add_argument("--auc_roc", type=bool, default=True,
+                        help="Draw Area Under the ROC Curve (AUC – ROC) evaluation images during training")
     parser.add_argument("--clearml", type=bool, default=False,
                         help="Connect to clearml server")
     parser.add_argument("--test_cycle", type=bool, default=False,
