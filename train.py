@@ -641,6 +641,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                     'min',
                     patience=int(args.evaluation_interval)*10,
                     min_lr=minimum_lr,
+                    cooldown=int(args.evaluation_interval),
                     verbose=False)
             elif req_scheduler == 'ConstantLR':
                 scheduler = torch.optim.lr_scheduler.ConstantLR(optimizer, factor=0.5,
@@ -974,7 +975,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                 if clearml_run and clearml_save_last:
                     task.update_output_model(model_path=f"{model_ckpt_logs_path}/{model_name}_ckpt_last.pth")
 
-            if auto_eval is True and loss_items.dim() > 0:
+            if auto_eval is True and loss_items.dim() > 0 and epoch > args.evaluation_interval:
                 # #############
                 # Training fitness evaluation
                 # Calculate weighted loss -> smaller losses = better training fitness
@@ -1108,10 +1109,10 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                         checkpoint_path = f"{model_ckpt_logs_path}/{model_name}_ckpt_best.pth"
                         print(f"- ⭐ - Saving best checkpoint to: '{checkpoint_path}'  ----")
                         torch.save(model.state_dict(), checkpoint_path)
-
-                        #Make a copy of best checkpoint confusion matrix
-                        shutil.copyfile(f'{model_imgs_logs_path}/confusion_matrix_last.png',
-                                        f'{model_imgs_logs_path}/confusion_matrix_best.png')
+                        if args.draw:
+                            #Make a copy of best checkpoint confusion matrix
+                            shutil.copyfile(f'{model_imgs_logs_path}/confusion_matrix_last.png',
+                                            f'{model_imgs_logs_path}/confusion_matrix_best.png')
                         ############################
                         # ClearML model update - V 3.0.0
                         ############################
@@ -1150,7 +1151,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                                 ]
                         csv_writer(data, f"{model_logs_path}/{model_name}_eval_stats.csv", 'a')
                         img_writer_eval_stats(eval_stats_class_array, eval_stats_ap_array,
-                                              f"{model_imgs_logs_path}/{model_name}")
+                                              f"{model_imgs_logs_path}/{model_name}_best")
                         # ############
                         # ClearML csv reporter logger - V0.3.8
                         # ############
@@ -1233,7 +1234,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
 
 
 if __name__ == "__main__":
-    ver = "0.4.10A-AUC-ROC"
+    ver = "0.4.11"
     # Check folders
     check_folders()
     parser = argparse.ArgumentParser(description="Trains the YOLOv3 model.")
@@ -1248,7 +1249,7 @@ if __name__ == "__main__":
     parser.add_argument("--n_cpu", type=int, default=2, help="Number of cpu threads to use during batch generation")
     parser.add_argument("-pw", "--pretrained_weights", type=str,
                         help="Path to checkpoint file (.weights or .pth). Starts training from checkpoint model")
-    parser.add_argument("--evaluation_interval", type=int, default=3,
+    parser.add_argument("--evaluation_interval", type=int, default=10,
                         help="Interval of epochs between evaluations on validation set")
     parser.add_argument("--multiscale_training", action="store_true", help="Allow multi-scale training")
     parser.add_argument("--iou_thres", type=float, default=0.1,
@@ -1275,7 +1276,7 @@ if __name__ == "__main__":
                         help="Name for trained model")
     parser.add_argument("--warmup", type=bool, default=True,
                         help="Use model training warmup")
-    parser.add_argument("--draw", type=bool, default=False,
+    parser.add_argument("--draw", type=bool, default=True,
                         help="Draw evaluation images during training")
     parser.add_argument("--auc_roc", type=bool, default=True,
                         help="Draw Area Under the ROC Curve (AUC – ROC) evaluation images during training")

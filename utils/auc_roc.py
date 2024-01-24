@@ -9,11 +9,14 @@
 
 #Imports
 import torch
-from torchvision.ops import box_iou
+#from torchvision.ops import box_iou
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import plotly.graph_objects as go
 from pathlib import Path
+from utils.utils import box_iou, xywh2xyxy
+
 
 class AUROC:
     """ Compute the auroc scores, given the auc for each class.
@@ -32,9 +35,22 @@ class AUROC:
         self.pred = [[] for _ in range(nc)]  # list to store model predictions for each class
         self.true = [[] for _ in range(nc)]  # list to store ground truth labels for each class
 
-        import subprocess
-        subprocess.check_call(['pip', 'install', 'scikit-learn'])
-        subprocess.check_call(['pip', 'install', 'plotly', 'kaleido'])
+        #import subprocess
+        #subprocess.check_call(['pip', 'install', 'scikit-learn'])
+        #subprocess.check_call(['pip', 'install', 'plotly', 'kaleido'])
+
+    def generate_batch_data(self, outputs, targets):
+        for si, pred in enumerate(outputs):
+            out_labels = targets[targets[:, 0] == si, 1:]
+            nl, npr = out_labels.shape[0], pred.shape[0]  # number of labels, predictions
+            predn = pred.clone()
+            # Evaluate
+            if nl:
+                tbox = xywh2xyxy(out_labels[:, 1:5])  # target boxes
+                #scale_boxes(_[si].shape[1:], tbox, shape, shapes[si][1])  # native-space labels
+                labelsn = torch.cat((out_labels[:, 0:1], tbox), 1)  # native-space labels
+                #correct = self.process_batch(predn, labelsn, iouv)
+                self.process_batch(predn, out_labels)
 
     def process_batch(self, detections, labels):
         """
@@ -130,14 +146,13 @@ class AUROC:
         return None
         save img at Path(save_dir) / 'polar_chart.png'
         '''
-        import plotly.graph_objects as go
         mauc = auc_scores.mean()
         auc_scores_name = dict(zip(names, auc_scores))
         auc_scores_name['mAUC'] = mauc
         df = pd.DataFrame.from_dict(auc_scores_name, orient='index')
         columns = list(df.index)
         fig = go.Figure(
-            data=[go.Scatterpolar(r=(df[0] * 100).round(0), fill='toself', name='diseases', theta=columns)],
+            data=[go.Scatterpolar(r=(df[0] * 100).round(0), fill='toself', name='Classes', theta=columns)],
             layout=go.Layout(
                 # title=go.layout.Title(text='Class AUC'),
                 polar={
@@ -152,18 +167,18 @@ class AUROC:
         )
         file_name = Path(save_dir) / 'polar_chart.png'
         fig.write_image(file_name)
-        # print('plot_polar_chart DONE')
+        plt.close('all')
+        #print('plot_polar_chart DONE')
 
     def plot_auroc_curve(self, fpr_, tpr_, auc_scores, save_dir='', names=()):
         # AUROC curve
         fig, ax = plt.subplots(1, 1, figsize=(9, 6), tight_layout=True)
-
         if 0 < len(names) < 21:  # display per-class legend if < 21 classes
             for i in range(len(names)):
-                ax.plot(fpr_[i], tpr_[i], linewidth=1, label=f'{names[i]} {auc_scores[i]:.3f}')  # plot(F_PR, T_PR)
+                ax.plot(fpr_[1][i], tpr_[1][i], linewidth=1, label=f'{names[i]} {auc_scores[i]:.3f}')  # plot(F_PR, T_PR)
         else:
             for i in range(len(names)):
-                ax.plot(fpr_[i], tpr_[i], linewidth=1, color='grey')  # plot(F_PR, T_PR)
+                ax.plot(fpr_[1][i], tpr_[1][i], linewidth=1, color='grey')  # plot(F_PR, T_PR)
 
         ax.plot([0, 1], [0, 1], linestyle='--', color='black', linewidth=1)  # diagonal line
         ax.set_xlabel('False Positive Rate')
@@ -177,4 +192,6 @@ class AUROC:
             fig.savefig(save_path, dpi=250)
             # print(f'Saved AUROC curve at: {save_path}')
         plt.close(fig)
-        # print('plot_auroc_curve DONE')
+        plt.close('all')
+        fig.clf()
+        #print('plot_auroc_curve DONE')

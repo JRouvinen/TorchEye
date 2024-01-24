@@ -2,8 +2,8 @@
 # test.py
 # Author: Juha-Matti Rouvinen
 # Date: 2023-07-02
-# Updated: 2024-01-16
-# Version V1.3
+# Updated: 2024-01-24
+# Version V2.0
 ##################################
 
 from __future__ import division
@@ -167,13 +167,11 @@ def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw,auc_roc,
     sample_metrics = []  # List of tuples (TP, confs, pred)
 
     confusion_matrix = ConfusionMatrix(nc=len(class_names))
-    aucroc = AUROC(nc=len(class_names))
-    names = model.names if hasattr(model, 'names') else model.module.names  # get class names
-    if isinstance(names, (list, tuple)):  # old format
-        names = dict(enumerate(names))
+
+
     p, r, f1, mp, mr, map50, map, t0, t1 = 0., 0., 0., 0., 0., 0., 0., 0., 0.
     #s = ('%20s' + '%12s' * 6) % ('Class', 'Images', 'Targets', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
-    for _, imgs, targets in tqdm.tqdm(dataloader, desc="Validating"):
+    for _, imgs, targets in tqdm.tqdm(dataloader, desc="Validating",colour='green'):
         # for batch_i, (img, targets, paths, shapes) in enumerate(tqdm(dataloader, desc=s)):
         # Extract labels
         labels += targets[:, 1].tolist()
@@ -184,7 +182,6 @@ def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw,auc_roc,
         with torch.no_grad():
             t = time_synchronized()
             outputs = model(imgs)
-
             t0 += time_synchronized() - t
             t = time_synchronized()
 
@@ -197,23 +194,32 @@ def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw,auc_roc,
             get_batch_statistics(outputs, targets, iou_threshold=iou_thres)
         )
 
-
-        # Confusion matrix
-        confusion_matrix.generate_batch_data(outputs, targets)
-        confusion_matrix.plot(True, img_log_path, class_names)
-        # auc roc
-        aucroc.process_batch(outputs, labels=class_names)
+        if draw:
+            # Confusion matrix
+            confusion_matrix.generate_batch_data(outputs, targets)
+            confusion_matrix.plot(True, img_log_path, class_names)
+        if auc_roc:
+            aucroc = AUROC(nc=len(class_names), conf=conf_thres, iou_thres=iou_thres)
+            names = model.names if hasattr(model, 'names') else model.module.names  # get class names
+            if isinstance(names, (list, tuple)):  # old format
+                names = dict(enumerate(names))
+            # auc roc
+            aucroc.generate_batch_data(outputs, targets)
+            # Compute AUC
+            auc_scores, fpr_, tpr_ = aucroc.out()
+            mauc = auc_scores.mean()
+            if float(mauc) > 0.0:
+                new_name = ['AUC/' + i for i in names.values()]
+                auc_scores_name = dict(zip(new_name, auc_scores))
+                auc_scores_name['AUC/mAUC'] = mauc
+                aucroc.plot_auroc_curve(fpr_, tpr_, auc_scores, img_log_path, names)
+                aucroc.plot_polar_chart(auc_scores,img_log_path,names)
+            else:
+                print(f"- ❎ - No detections in validation set -> skipping AOC ROC plotting ----")
 
     if len(sample_metrics) == 0:  # No detections over whole validation set.
         print("---- No detections over whole validation set ----")
         return None
-
-    # Compute AUC
-    auc_scores, fpr_, tpr_ = aucroc.out()
-    mauc = auc_scores.mean()
-    new_name = ['AUC/' + i for i in names.values()]
-    auc_scores_name = dict(zip(new_name, auc_scores))
-    auc_scores_name['AUC/mAUC'] = mauc
 
     # Compute statistics
     '''

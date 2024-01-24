@@ -37,7 +37,7 @@ def img_writer_training(iou_loss, obj_loss, cls_loss, loss, lr, batch_loss,itera
     ax_array[0, 0].set_ylabel('IoU loss')
     #ax_array[0, 0].plot(x, iou_loss, marker = 'o')
     ax_array[0, 0].plot(x, iou_loss)
-    if np.mean(iteration) >= 5:
+    if np.mean(iteration) >= 25:
         #calculate equation for trendline
         z = np.polyfit(x,iou_loss,1)
         p = np.poly1d(z)
@@ -51,7 +51,7 @@ def img_writer_training(iou_loss, obj_loss, cls_loss, loss, lr, batch_loss,itera
     ax_array[0, 1].set_ylabel('Object loss')
     #ax_array[0, 1].plot(x, obj_loss, marker = 'o')
     ax_array[0, 1].plot(x, obj_loss)
-    if np.mean(iteration) >= 5:
+    if np.mean(iteration) >= 25:
         #calculate equation for trendline
         z = np.polyfit(x,obj_loss,1)
         p = np.poly1d(z)
@@ -65,7 +65,7 @@ def img_writer_training(iou_loss, obj_loss, cls_loss, loss, lr, batch_loss,itera
     ax_array[0, 2].set_ylabel('Class loss')
     #ax_array[0, 2].plot(x, cls_loss, marker = 'o')
     ax_array[0, 2].plot(x, cls_loss)
-    if np.mean(iteration) >= 5:
+    if np.mean(iteration) >= 25:
         #calculate equation for trendline
         z = np.polyfit(x,cls_loss,1)
         p = np.poly1d(z)
@@ -79,7 +79,7 @@ def img_writer_training(iou_loss, obj_loss, cls_loss, loss, lr, batch_loss,itera
     ax_array[1, 0].set_ylabel('Loss')
     #ax_array[1, 0].plot(x, loss, marker = 'o')
     ax_array[1, 0].plot(x, loss)
-    if np.mean(iteration) >= 5:
+    if np.mean(iteration) >= 25:
         #calculate equation for trendline
         z = np.polyfit(x,loss,1)
         p = np.poly1d(z)
@@ -106,7 +106,7 @@ def img_writer_training(iou_loss, obj_loss, cls_loss, loss, lr, batch_loss,itera
     ax_array[1, 2].set_ylabel('Batch loss')
     #ax_array[1, 2].plot(x, batch_loss, marker='o')
     ax_array[1, 2].plot(x, batch_loss)
-    if np.mean(iteration) >= 5:
+    if np.mean(iteration) >= 25:
         #calculate equation for trendline
         z = np.polyfit(x,batch_loss,1)
         p = np.poly1d(z)
