@@ -662,7 +662,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                                                               lr_lambda=lf,
                                                               verbose=False)  # plot_lr_scheduler(optimizer, scheduler, epochs)
             elif req_scheduler == 'MultiplicativeLR':
-                lf = one_cycle(1, float(hyp_config['lrf']), args.epochs)  # cosine 1->hyp['lrf']
+                lf = one_cycle(1, float(hyp_config['lr0']), args.epochs)  # cosine 1->hyp['lrf']
                 scheduler = torch.optim.lr_scheduler.MultiplicativeLR(optimizer, lr_lambda=lf)
             elif req_scheduler == 'StepLR':
                 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=int(args.evaluation_interval),
@@ -1232,7 +1232,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
 
 
 if __name__ == "__main__":
-    ver = "0.4.10"
+    ver = "0.4.10A"
     # Check folders
     check_folders()
     parser = argparse.ArgumentParser(description="Trains the YOLOv3 model.")
