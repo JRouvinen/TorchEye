@@ -2,8 +2,8 @@
 # test.py
 # Author: Juha-Matti Rouvinen
 # Date: 2023-07-02
-# Updated: 2024-01-24
-# Version V2.0
+# Updated: 2024-01-25
+# Version V2.1
 ##################################
 
 from __future__ import division
@@ -171,6 +171,14 @@ def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw,auc_roc,
 
     p, r, f1, mp, mr, map50, map, t0, t1 = 0., 0., 0., 0., 0., 0., 0., 0., 0.
     #s = ('%20s' + '%12s' * 6) % ('Class', 'Images', 'Targets', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
+    if draw or auc_roc:
+        if device.type == "cuda":
+            eval_plot_outputs = None
+            eval_plot_targets = None
+        else:
+            eval_plot_outputs = torch.tensor(data='')
+            eval_plot_targets = torch.tensor(data='')
+
     for _, imgs, targets in tqdm.tqdm(dataloader, desc="Validating",colour='green'):
         # for batch_i, (img, targets, paths, shapes) in enumerate(tqdm(dataloader, desc=s)):
         # Extract labels
@@ -184,42 +192,52 @@ def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw,auc_roc,
             outputs = model(imgs)
             t0 += time_synchronized() - t
             t = time_synchronized()
+            if draw or auc_roc:
+                if eval_plot_outputs == None:
+                    eval_plot_outputs = outputs
+                    eval_plot_targets = targets
+                else:
+                    # Append eval tensors
+                    torch.cat((eval_plot_outputs, outputs))
+                    torch.cat((eval_plot_targets, targets))
+
+                eval_plot_outputs = non_max_suppression(
+                    eval_plot_outputs, conf_thres=conf_thres, iou_thres=nms_thres
+                )
 
             outputs = non_max_suppression(
                 outputs, conf_thres=conf_thres, iou_thres=nms_thres
             )
             t1 += time_synchronized() - t
 
-        sample_metrics.extend(
-            get_batch_statistics(outputs, targets, iou_threshold=iou_thres)
-        )
+        sample_metrics.extend(get_batch_statistics(outputs, targets, iou_threshold=iou_thres))
 
-        if draw:
-            # Confusion matrix
-            confusion_matrix.generate_batch_data(outputs, targets)
-            confusion_matrix.plot(True, img_log_path, class_names)
-        if auc_roc:
-            aucroc = AUROC(nc=len(class_names), conf=conf_thres, iou_thres=iou_thres)
-            names = model.names if hasattr(model, 'names') else model.module.names  # get class names
-            if isinstance(names, (list, tuple)):  # old format
-                names = dict(enumerate(names))
-            # auc roc
-            aucroc.generate_batch_data(outputs, targets)
-            # Compute AUC
-            auc_scores, fpr_, tpr_ = aucroc.out()
-            mauc = auc_scores.mean()
-            if float(mauc) > 0.0:
-                new_name = ['AUC/' + i for i in names.values()]
-                auc_scores_name = dict(zip(new_name, auc_scores))
-                auc_scores_name['AUC/mAUC'] = mauc
-                aucroc.plot_auroc_curve(fpr_, tpr_, auc_scores, img_log_path, names)
-                aucroc.plot_polar_chart(auc_scores,img_log_path,names)
-            else:
-                print(f"- ❎ - No detections in validation set -> skipping AOC ROC plotting ----")
+    if draw:
+        # Confusion matrix
+        confusion_matrix.generate_batch_data(eval_plot_outputs, eval_plot_targets)
+        confusion_matrix.plot(True, img_log_path, class_names,epoch)
+    if auc_roc:
+        aucroc = AUROC(nc=len(class_names), conf=conf_thres, iou_thres=iou_thres)
+        names = model.names if hasattr(model, 'names') else model.module.names  # get class names
+        if isinstance(names, (list, tuple)):  # old format
+            names = dict(enumerate(names))
+        # auc roc
+        aucroc.generate_batch_data(eval_plot_outputs, eval_plot_targets)
+        # Compute AUC
+        auc_scores, fpr_, tpr_ = aucroc.out()
+        mauc = auc_scores.mean()
+        if float(mauc) > 0.0:
+            new_name = ['AUC/' + i for i in names.values()]
+            auc_scores_name = dict(zip(new_name, auc_scores))
+            auc_scores_name['AUC/mAUC'] = mauc
+            aucroc.plot_auroc_curve(fpr_, tpr_, auc_scores, img_log_path, names, epoch)
+            #aucroc.plot_polar_chart(auc_scores,img_log_path,names)
+        else:
+            print(f"- ❎ - No detections in validation set -> skipping AOC ROC plotting ----")
 
-    if len(sample_metrics) == 0:  # No detections over whole validation set.
-        print("---- No detections over whole validation set ----")
-        return None
+    #if len(sample_metrics) == 0:  # No detections over whole validation set.
+    #    print("---- No detections over whole validation set ----")
+    #    return None
 
     # Compute statistics
     '''

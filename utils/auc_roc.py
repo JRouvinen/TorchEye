@@ -3,7 +3,7 @@
 # Author: Juha-Matti Rouvinen
 # Date: 2024-01-24
 # Updated: 2024-01-24
-# Version V1.0
+# Version V1.1
 # This implementation is based on the code from: https://github.com/haooyuee/YOLOv5-AUC-ROC-MedDetect/
 ##################################
 
@@ -15,6 +15,9 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from pathlib import Path
+from scipy.signal import savgol_filter
+from scipy.interpolate import make_interp_spline
+
 from utils.utils import box_iou, xywh2xyxy
 
 
@@ -170,15 +173,42 @@ class AUROC:
         plt.close('all')
         #print('plot_polar_chart DONE')
 
-    def plot_auroc_curve(self, fpr_, tpr_, auc_scores, save_dir='', names=()):
+    def plot_auroc_curve(self, fpr_, tpr_, auc_scores, save_dir='', names=(),epoch=0):
         # AUROC curve
         fig, ax = plt.subplots(1, 1, figsize=(9, 6), tight_layout=True)
         if 0 < len(names) < 21:  # display per-class legend if < 21 classes
-            for i in range(len(names)):
-                ax.plot(fpr_[1][i], tpr_[1][i], linewidth=1, label=f'{names[i]} {auc_scores[i]:.3f}')  # plot(F_PR, T_PR)
+            #ax.plot(fpr_[1], tpr_[1], linewidth=1, label=f'{names} {auc_scores}')
+            #X_Y_Spline = make_interp_spline(tpr_[1], fpr_[1])
+            # Returns evenly spaced numbers
+            # over a specified interval.
+            x_tensor = tpr_[1]
+            X_ = np.linspace(x_tensor.min(), x_tensor.max(),x_tensor.size)
+            Y_ = fpr_[1]
+            yhat = savgol_filter(Y_, Y_.size, 3)  # window size 51, polynomial order 3
+            # Plotting the Graph
+            ax.plot(X_, yhat, linewidth=1, color='blue')
+            # Generate label-score dict
+            #label_score_dict = {}
+            indx = 0
+            textstr = ""
+            for x in names.values():
+                #label_score_dict[x] = f'{auc_scores[indx]:.3f}'
+                textstr += f'\n{x} - {auc_scores[indx]:.3f}'
+                indx += 1
+
+            # these are matplotlib.patch.Patch properties
+            props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+            # place a text box in upper left in axes coords
+            ax.text(0.8, 0.1, textstr, transform=ax.transAxes, fontsize=10,
+                    verticalalignment='bottom', bbox=props)
+
         else:
-            for i in range(len(names)):
-                ax.plot(fpr_[1][i], tpr_[1][i], linewidth=1, color='grey')  # plot(F_PR, T_PR)
+            x_tensor = tpr_[1]
+            X_ = np.linspace(x_tensor.min(), x_tensor.max(), x_tensor.size)
+            Y_ = fpr_[1]
+            yhat = savgol_filter(Y_, Y_.size, 3)  # window size 51, polynomial order 3
+            # Plotting the Graph
+            ax.plot(X_, yhat, linewidth=1, color='blue')
 
         ax.plot([0, 1], [0, 1], linestyle='--', color='black', linewidth=1)  # diagonal line
         ax.set_xlabel('False Positive Rate')
@@ -186,7 +216,7 @@ class AUROC:
         ax.set_xlim(0, 1)
         ax.set_ylim(0, 1)
         ax.legend(bbox_to_anchor=(1.04, 1), loc='upper left')
-        ax.set_title('AUROC Curve')
+        ax.set_title(f'AUROC Curve - Epoch {epoch}')
         if save_dir:
             save_path = Path(save_dir) / 'auroc_curve.png'
             fig.savefig(save_path, dpi=250)

@@ -20,3 +20,5 @@ filterpy~=1.4.5
 torcheval~=0.0.7
 seaborn
 plotly
+kaleido
+scikit-learn

@@ -170,7 +170,7 @@ def img_writer_evaluation(precision, recall, mAP, f1, ckpt_fitness,train_fitness
     # Plot for precision
     ax_array[0, 0].set_ylabel('Precision')
     ax_array[0, 0].plot(x, precision)
-    if np.mean(epoch) >= 5:
+    if np.mean(epoch) >= 25:
         #calculate equation for trendline
         z = np.polyfit(x,precision,1)
         p = np.poly1d(z)
@@ -184,7 +184,7 @@ def img_writer_evaluation(precision, recall, mAP, f1, ckpt_fitness,train_fitness
     # Plot for recall
     ax_array[0, 1].set_ylabel('Recall')
     ax_array[0, 1].plot(x, recall)
-    if np.mean(epoch) >= 5:
+    if np.mean(epoch) >= 25:
         #calculate equation for trendline
         z = np.polyfit(x,recall,1)
         p = np.poly1d(z)
@@ -197,7 +197,7 @@ def img_writer_evaluation(precision, recall, mAP, f1, ckpt_fitness,train_fitness
     # Plot for f1
     ax_array[0, 2].set_ylabel('F1')
     ax_array[0, 2].plot(x, f1)
-    if np.mean(epoch) >= 5:
+    if np.mean(epoch) >= 25:
         #calculate equation for trendline
         z = np.polyfit(x,f1,1)
         p = np.poly1d(z)
@@ -210,7 +210,7 @@ def img_writer_evaluation(precision, recall, mAP, f1, ckpt_fitness,train_fitness
     # Plot for mAP
     ax_array[1, 0].set_ylabel('mAP')
     ax_array[1, 0].plot(x, mAP)
-    if np.mean(epoch) >= 5:
+    if np.mean(epoch) >= 25:
         #calculate equation for trendline
         z = np.polyfit(x,mAP,1)
         p = np.poly1d(z)
@@ -223,7 +223,7 @@ def img_writer_evaluation(precision, recall, mAP, f1, ckpt_fitness,train_fitness
     # Plot for train fitness
     ax_array[1, 1].set_ylabel('Train FITNESS')
     ax_array[1, 1].plot(x, train_fitness)
-    if np.mean(epoch) >= 5:
+    if np.mean(epoch) >= 25:
         #calculate equation for trendline
         z = np.polyfit(x,train_fitness,1)
         p = np.poly1d(z)
@@ -236,7 +236,7 @@ def img_writer_evaluation(precision, recall, mAP, f1, ckpt_fitness,train_fitness
     # Plot for ckpt fitness
     ax_array[1, 2].set_ylabel('CKPT FITNESS')
     ax_array[1, 2].plot(x, ckpt_fitness)
-    if np.mean(epoch) >= 5:
+    if np.mean(epoch) >= 25:
         #calculate equation for trendline
         z = np.polyfit(x,ckpt_fitness,1)
         p = np.poly1d(z)
