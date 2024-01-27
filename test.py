@@ -120,7 +120,7 @@ def scale_boxes(img1_shape, boxes, img0_shape, ratio_pad=None):
 
 
 def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw,auc_roc, img_size, iou_thres, conf_thres, nms_thres,
-              verbose, device, ):
+              verbose, device, logger):
     """Evaluate model on validation dataset.
 
     :param model: Model to evaluate
@@ -215,7 +215,8 @@ def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw,auc_roc,
     if draw:
         # Confusion matrix
         confusion_matrix.generate_batch_data(eval_plot_outputs, eval_plot_targets)
-        confusion_matrix.plot(True, img_log_path, class_names,epoch)
+        confusion_matrix.plot(True, img_log_path, class_names,epoch,logger)
+
     if auc_roc:
         aucroc = AUROC(nc=len(class_names), conf=conf_thres, iou_thres=iou_thres)
         names = model.names if hasattr(model, 'names') else model.module.names  # get class names
@@ -230,7 +231,7 @@ def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw,auc_roc,
             new_name = ['AUC/' + i for i in names.values()]
             auc_scores_name = dict(zip(new_name, auc_scores))
             auc_scores_name['AUC/mAUC'] = mauc
-            aucroc.plot_auroc_curve(fpr_, tpr_, auc_scores, img_log_path, names, epoch)
+            aucroc.plot_auroc_curve(fpr_, tpr_, auc_scores, img_log_path, names, epoch,logger)
             #aucroc.plot_polar_chart(auc_scores,img_log_path,names)
         else:
             print(f"- ❎ - No detections in validation set -> skipping AOC ROC plotting ----")

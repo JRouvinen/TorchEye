@@ -2,8 +2,8 @@
 # writer.py
 # Author: Juha-Matti Rouvinen
 # Date: 2023-07-02
-# Updated: 2024-01-05
-# Version V4.0
+# Updated: 2024-01-27
+# Version V5.0
 ##################################
 import csv
 import matplotlib
@@ -12,6 +12,9 @@ from matplotlib import pyplot as plt
 #import matplotlib.pyplot as plt
 import numpy as np
 
+def open_file(path):
+    file = matplotlib.pyplot.imread(path, format=None)
+    return file
 
 def csv_writer(data, filename, oper):
     #header = ['Iterations','Iou Loss','Object Loss','Class Loss','Loss','Learning Rate']
@@ -23,7 +26,7 @@ def csv_writer(data, filename, oper):
         table_writer.writerow(data)
     f.close()
 
-def img_writer_training(iou_loss, obj_loss, cls_loss, loss, lr, batch_loss,iteration, filename):
+def img_writer_training(iou_loss, obj_loss, cls_loss, loss, lr, batch_loss,iteration, filename,logger):
     #header = ['Epoch', 'Epochs','Iou Loss','Object Loss','Class Loss','Loss','Learning Rate']    # img_writer_data = global_step,x_loss,y_loss,w_loss,h_loss,conf_loss,cls_loss,loss,recall,precision
     #log_path = filename.replace("checkpoints", "")
     # Placing the plots in the plane
@@ -119,6 +122,8 @@ def img_writer_training(iou_loss, obj_loss, cls_loss, loss, lr, batch_loss,itera
     fig.savefig(filename+'_training_metrics.png')
     # displaying the title
     plt.title(filename)
+    if logger is not None:
+        logger.add_figure('training_metrics', fig, global_step=iteration.max(), close=True, walltime=None)
     plt.close('all')
     # https://github.com/matplotlib/mplfinance/issues/386 -> failed to allocate bitmap
     fig.clf()
@@ -154,11 +159,13 @@ def img_writer_class_dist(weights,classes,values, header,filename):
     #plt.close('all')
     '''
     fig.savefig(f'{filename}/{header}_for_dataset.png')
+    #if logger is not None:
+    #    logger.add_figure(f'{header}_for_dataset', fig, global_step=1, close=True, walltime=None)
     plt.close('all')
     fig.clf()
 
 
-def img_writer_evaluation(precision, recall, mAP, f1, ckpt_fitness,train_fitness,epoch, filename):
+def img_writer_evaluation(precision, recall, mAP, f1, ckpt_fitness,train_fitness,epoch, filename,logger):
     #img_writer_evaluation(precision_array, recall_array, mAP_array, f1_array, ap_cls_array, curr_fitness_array, eval_epoch_array, args.logdir + "/" + date)
     # Placing the plots in the plane
     fig = plt.figure(layout="constrained", figsize=(30, 10))
@@ -247,6 +254,8 @@ def img_writer_evaluation(precision, recall, mAP, f1, ckpt_fitness,train_fitness
     #ax_array[1, 2].set_ybound([0, 10])
 
     fig.savefig(filename+'_evaluation_metrics.png')
+    if logger is not None:
+        logger.add_figure(f'evaluation_metrics', fig, global_step=epoch.max(), close=True, walltime=None)
     plt.close('all')
     fig.clf()
 

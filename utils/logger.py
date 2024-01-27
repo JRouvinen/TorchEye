@@ -1,5 +1,14 @@
+#################################
+# Logger.py
+# Author: Juha-Matti Rouvinen
+# Date: 2023-07-02
+# Updated: 2024-01-27
+# Version V3.0
+##################################
 import os
 import datetime
+
+import torchvision.utils
 from torch.utils.tensorboard import SummaryWriter
 
 
@@ -20,3 +29,16 @@ class Logger(object):
         """Log scalar variables."""
         for tag, value in tag_value_pairs:
             self.writer.add_scalar(tag, value, step)
+
+    def add_image(self,name,img):
+        """Log images - V2"""
+        self.writer.add_image(name, img)
+
+    def add_pr_curve(self,name, labels, predictions, epoch):
+        self.writer.add_pr_curve('pr_curve',labels,predictions,epoch)
+
+    def add_graph(self,model,images):
+        self.writer.add_graph(model, images)
+
+    def add_figure(self,tag,fig,global_step,close=True,walltime=None):
+        self.writer.add_figure(tag,fig,global_step,close,walltime)

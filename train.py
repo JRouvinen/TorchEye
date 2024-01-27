@@ -76,8 +76,6 @@ from terminaltables import AsciiTable
 from torch.cuda import amp
 from utils import threaded
 from utils.confusion_matrix import ConfusionMatrix
-from utils.plots import plot_images
-
 from utils.torch_utils import ModelEMA
 # Profilers
 # from profilehooks import profile
@@ -97,7 +95,7 @@ from utils.augmentations import AUGMENTATION_TRANSFORMS
 from utils.parse_config import parse_data_config, parse_hyp_config
 from utils.loss import compute_loss, fitness, training_fitness
 from utils.writer import (csv_writer, img_writer_training, img_writer_evaluation,
-                          log_file_writer, img_writer_eval_stats)
+                          log_file_writer, img_writer_eval_stats, open_file)
 from utils.datasets_v2 import create_dataloader
 
 
@@ -265,8 +263,11 @@ def run(args, data_config, hyp_config, ver, clearml=None):
             print(f'Class names: {class_names}')
             log_file_writer(f"Class names: {class_names}", model_logfile_path)
         print_environment_info(ver, model_logfile_path)
-        logger = Logger(model_logs_path)  # Tensorboard logger
-        run_tensorboard(model_logs_path)
+        if args.tensorboard:
+            logger = Logger(model_logs_path)  # Tensorboard logger
+            run_tensorboard(model_logs_path)
+        else:
+            logger = None
         gpu = args.gpu
         auto_eval = True
         best_training_fitness = 999999
@@ -887,10 +888,12 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                         ("train/batch loss", float(loss.item())),
 
                     ]
-                    logger.list_of_scalars_summary(tensorboard_log, batches_done)
-                    # Tensorflow logger - learning rate V0.3.4I
-                    logger.scalar_summary("train/learning rate", np.mean(lr), batches_done)
-
+                    if logger is not None:
+                        logger.list_of_scalars_summary(tensorboard_log, epoch)
+                        # Tensorflow logger - learning rate V0.3.4I
+                        logger.scalar_summary("train/learning rate", np.mean(lr), epoch)
+                        # Tensorflow logger - pr curve - V1.0
+                        #logger.add_pr_curve('pr_curve', targets, pred, epoch)
                     model.seen += imgs.size(0)
 
                     # ############
@@ -953,7 +956,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                     img_writer_training(iou_loss_array, obj_loss_array, cls_loss_array, train_loss_array, lr_array,
                                         batch_loss_array,
                                         batches_array,
-                                        model_logs_path + '/' + model_name)
+                                        model_logs_path + '/' + model_name,logger)
             # #############
             # Save progress -> changed on version 0.3.11F to save every eval epoch
             # #############
@@ -990,7 +993,8 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                 # Updated on version 0.3.12
                 fi_train = training_fitness(np.array(training_evaluation_metrics).reshape(1, -1), w_train)
                 train_fitness = float(fi_train[0])
-                logger.scalar_summary("fitness/training", train_fitness, epoch)
+                if logger is not None:
+                    logger.scalar_summary("fitness/training", train_fitness, epoch)
                 if fi_train < best_training_fitness:
                     print(
                         f"- ✅ - Auto evaluation result: New best training fitness {fi_train}, old best {best_training_fitness} ----")
@@ -1029,6 +1033,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                     nms_thres=args.nms_thres,
                     verbose=args.verbose,
                     device=device,
+                    logger=logger
 
                 )
 
@@ -1055,12 +1060,12 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                         f1.mean(),
                         ap_class.mean()
                     ]
-
-                    # Log the evaluation metrics
-                    logger.scalar_summary("validation/precision", float(precision.mean()), epoch)
-                    logger.scalar_summary("validation/recall", float(recall.mean()), epoch)
-                    logger.scalar_summary("validation/mAP", float(AP.mean()), epoch)
-                    logger.scalar_summary("validation/f1", float(f1.mean()), epoch)
+                    if logger is not None:
+                        # Log the evaluation metrics
+                        logger.scalar_summary("validation/precision", float(precision.mean()), epoch)
+                        logger.scalar_summary("validation/recall", float(recall.mean()), epoch)
+                        logger.scalar_summary("validation/mAP", float(AP.mean()), epoch)
+                        logger.scalar_summary("validation/f1", float(f1.mean()), epoch)
 
                     # ############
                     # ClearML validation logger - V0.3.3
@@ -1082,7 +1087,8 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                                  w)  # weighted combination of [P, R, mAP@0.5, f1]
                     curr_fitness = float(fi[0])
                     curr_fitness_array = np.concatenate((curr_fitness_array, np.array([curr_fitness])))
-                    logger.scalar_summary("fitness/model", curr_fitness, epoch)
+                    if logger is not None:
+                        logger.scalar_summary("fitness/model", curr_fitness, epoch)
                     train_fitness_array = np.concatenate((train_fitness_array, np.array([train_fitness])))
                     # logger.scalar_summary("fitness/training", float(fi_train), epoch)
                     print(
@@ -1102,7 +1108,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                     f1_array = np.concatenate((f1_array, np.array([f1.mean()])))
                     img_writer_evaluation(precision_array, recall_array, m_ap_array, f1_array,
                                           curr_fitness_array, train_fitness_array, eval_epoch_array,
-                                          model_logs_path + '/' + model_name)
+                                          model_logs_path + '/' + model_name,logger)
 
                     if curr_fitness > best_fitness and epoch:
                         best_fitness = curr_fitness
@@ -1113,6 +1119,22 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                             #Make a copy of best checkpoint confusion matrix
                             shutil.copyfile(f'{model_imgs_logs_path}/confusion_matrix_last.png',
                                             f'{model_imgs_logs_path}/confusion_matrix_best.png')
+                            #Report to tensorboard
+                            #file_to_save = open_file(f'{model_imgs_logs_path}/confusion_matrix_best.png')
+                            #if logger is not None:
+                            #    logger.add_figure('confusion_matrix_best', file_to_save, global_step=epoch, close=True,
+                            #                      walltime=None)
+                            #logger.add_image(f, result, dataformats='HWC', global_step=epoch)
+
+                        if args.auc_roc:
+                            # Make a copy of best checkpoint auc roc curve
+                            shutil.copyfile(f'{model_imgs_logs_path}/auc_roc_curve_last.png',
+                                            f'{model_imgs_logs_path}/auc_roc_curve_best.png')
+                            # Report to tensorboard
+                            #file_to_save = open_file(f'{model_imgs_logs_path}/auc_roc_curve_best.png')
+                            #if logger is not None:
+                            #    logger.add_figure('auc_roc_curve_best', file_to_save, global_step=epoch, close=True,
+                            #                      walltime=None)
                         ############################
                         # ClearML model update - V 3.0.0
                         ############################
@@ -1140,8 +1162,8 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                             eval_stats_class_array = np.concatenate(
                                 (eval_stats_class_array, np.array([class_names[i]])))
                             eval_stats_ap_array = np.concatenate((eval_stats_ap_array, np.array([AP[i]])))
-
-                            logger.scalar_summary(f"validation/class/{class_names[i]}", round(float(AP[i]), 5), epoch)
+                            if logger is not None:
+                                logger.scalar_summary(f"validation/class/{class_names[i]}", round(float(AP[i]), 5), epoch)
                             csv_writer(data, f"{model_logs_path}/{model_name}_eval_stats.csv", 'a')
 
                         # Write mAP value as last line
@@ -1234,7 +1256,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
 
 
 if __name__ == "__main__":
-    ver = "0.4.12"
+    ver = "1.0.0"
     # Check folders
     check_folders()
     parser = argparse.ArgumentParser(description="Trains the YOLOv3 model.")
@@ -1272,6 +1294,8 @@ if __name__ == "__main__":
                              "3 = SubsetRandomSampler, 4 = WeightedRandomSampler, 5 = BatchSampler]")
     parser.add_argument("--logdir", type=str, default="logs",
                         help="Directory for training log files (e.g. for TensorBoard)")
+    parser.add_argument("-tb", "--tensorboard", type=bool, default=True,
+                        help="Flag if tensorboard logger should be used [Default=True]")
     parser.add_argument("--name", type=str, default=None,
                         help="Name for trained model")
     parser.add_argument("--warmup", type=bool, default=True,

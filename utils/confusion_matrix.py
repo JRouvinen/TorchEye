@@ -1,12 +1,18 @@
-
+#################################
+# confusion_matrix.py
+# Author: Juha-Matti Rouvinen
+# Date: 2024-01-05
+# Updated: 2024-01-27
+# Version V3
+##################################
 import matplotlib
 matplotlib.use("Agg")
-from matplotlib import pyplot as plt
 #import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import seaborn as sn
 from utils.utils import box_iou, xywh2xyxy
+from matplotlib import pyplot as plt
 
 
 class ConfusionMatrix:
@@ -89,7 +95,7 @@ class ConfusionMatrix:
         return tp[:-1], fp[:-1]  # remove background class
 
     #@TryExcept('WARNING ⚠️ ConfusionMatrix plot failure')
-    def plot(self, normalize=True, save_dir='', names=(),epoch=0):
+    def plot(self, normalize=True, save_dir='', names=(),epoch=0,logger=None):
 
         array = self.matrix / ((self.matrix.sum(0).reshape(1, -1) + 1E-9) if normalize else 1)  # normalize columns
         array[array < 0.005] = np.nan  # don't annotate (would appear as 0.00)
@@ -114,6 +120,9 @@ class ConfusionMatrix:
         ax.set_ylabel('Predicted')
         ax.set_title(f'Confusion Matrix - Epoch {epoch}')
         fig.savefig(f'{save_dir}/confusion_matrix_last.png', dpi=250)
+        if logger is not None:
+            logger.add_figure('confusion_matrix', fig, global_step=epoch, close=True,
+                              walltime=None)
         plt.close(fig)
         plt.close('all')
         fig.clf()

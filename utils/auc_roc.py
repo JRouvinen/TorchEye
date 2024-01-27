@@ -2,8 +2,8 @@
 # auc_roc.py
 # Author: Juha-Matti Rouvinen
 # Date: 2024-01-24
-# Updated: 2024-01-24
-# Version V1.1
+# Updated: 2024-01-27
+# Version V1.2
 # This implementation is based on the code from: https://github.com/haooyuee/YOLOv5-AUC-ROC-MedDetect/
 ##################################
 
@@ -173,7 +173,7 @@ class AUROC:
         plt.close('all')
         #print('plot_polar_chart DONE')
 
-    def plot_auroc_curve(self, fpr_, tpr_, auc_scores, save_dir='', names=(),epoch=0):
+    def plot_auroc_curve(self, fpr_, tpr_, auc_scores, save_dir='', names=(),epoch=0,logger=None):
         # AUROC curve
         fig, ax = plt.subplots(1, 1, figsize=(9, 6), tight_layout=True)
         if 0 < len(names) < 21:  # display per-class legend if < 21 classes
@@ -215,12 +215,15 @@ class AUROC:
         ax.set_ylabel('True Positive Rate')
         ax.set_xlim(0, 1)
         ax.set_ylim(0, 1)
-        ax.legend(bbox_to_anchor=(1.04, 1), loc='upper left')
+        #ax.legend(bbox_to_anchor=(1.04, 1), loc='upper left')
         ax.set_title(f'AUROC Curve - Epoch {epoch}')
         if save_dir:
-            save_path = Path(save_dir) / 'auroc_curve.png'
+            save_path = Path(save_dir) / 'auc_roc_curve_last.png'
             fig.savefig(save_path, dpi=250)
             # print(f'Saved AUROC curve at: {save_path}')
+        if logger is not None:
+            logger.add_figure('auc_roc_curve', fig, global_step=epoch, close=True,
+                              walltime=None)
         plt.close(fig)
         plt.close('all')
         fig.clf()
