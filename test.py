@@ -10,6 +10,7 @@ from __future__ import division
 
 import argparse
 import datetime
+import warnings
 
 import tqdm
 from terminaltables import AsciiTable
@@ -18,20 +19,22 @@ from torch.utils.data import DataLoader, SequentialSampler, RandomSampler, Subse
     BatchSampler
 
 from models import *
+from utils import plots
 from utils.auc_roc import AUROC
 from utils.confusion_matrix import ConfusionMatrix
 from utils.datasets import ListDataset
-from utils.datasets_v2 import LoadImagesAndLabels
-from utils.parse_config import parse_data_config
+from utils.parse_config import parse_data_config, parse_hyp_config
 from utils.plots import plot_images
 from utils.torch_utils import time_synchronized
 from utils.transforms import DEFAULT_TRANSFORMS
 from utils.utils import load_classes, ap_per_class, get_batch_statistics, non_max_suppression, xywh2xyxy, \
     print_environment_info, get_class_weights
+from utils.writer import csv_writer, img_writer_eval_stats
 
 
 def evaluate_model_file(model_path, weights_path, img_path, class_names, batch_size, img_size,
-                        n_cpu, iou_thres, conf_thres, nms_thres, verbose, device):
+                        n_cpu, iou_thres, conf_thres, nms_thres, verbose,
+                        device, model_imgs_logs_path, epoch, draw, auc_roc, logger, hyp):
     """Evaluate model on validation dataset.
 
     :param model_path: Path to model definition file (.cfg)
@@ -62,20 +65,27 @@ def evaluate_model_file(model_path, weights_path, img_path, class_names, batch_s
         gpu = 0
     else:
         gpu = -1
-    dataloader = _create_validation_data_loader(
+    dataloader = _create_validation_data_loader_v1(
         img_path, batch_size, img_size, n_cpu)
-    model = load_model(model_path, gpu, weights_path)
+    model = load_model(model_path, hyp, gpu, weights_path)
 
     metrics_output = _evaluate(
         model,
         dataloader,
         class_names,
+        model_imgs_logs_path,
+        epoch,
+        draw,
+        auc_roc,
         img_size,
         iou_thres,
         conf_thres,
         nms_thres,
         verbose,
-        device)
+        device,
+        logger
+    )
+
     return metrics_output
 
 
@@ -93,35 +103,14 @@ def print_eval_stats(metrics_output, class_names, verbose):
         print("---- mAP not measured (no detections found by model) ----")
 
 
-def clip_boxes(boxes, shape):
-    # Clip boxes (xyxy) to image shape (height, width)
-    if isinstance(boxes, torch.Tensor):  # faster individually
-        boxes[..., 0].clamp_(0, shape[1])  # x1
-        boxes[..., 1].clamp_(0, shape[0])  # y1
-        boxes[..., 2].clamp_(0, shape[1])  # x2
-        boxes[..., 3].clamp_(0, shape[0])  # y2
-    else:  # np.array (faster grouped)
-        boxes[..., [0, 2]] = boxes[..., [0, 2]].clip(0, shape[1])  # x1, x2
-        boxes[..., [1, 3]] = boxes[..., [1, 3]].clip(0, shape[0])  # y1, y2
 
 
-def scale_boxes(img1_shape, boxes, img0_shape, ratio_pad=None):
-    # Rescale boxes (xyxy) from img1_shape to img0_shape
-    if ratio_pad is None:  # calculate from img0_shape
-        gain = min(img1_shape[0] / img0_shape[0], img1_shape[1] / img0_shape[1])  # gain  = old / new
-        pad = (img1_shape[1] - img0_shape[1] * gain) / 2, (img1_shape[0] - img0_shape[0] * gain) / 2  # wh padding
-    else:
-        gain = ratio_pad[0][0]
-        pad = ratio_pad[1]
 
-    boxes[..., [0, 2]] -= pad[0]  # x padding
-    boxes[..., [1, 3]] -= pad[1]  # y padding
-    boxes[..., :4] /= gain
-    clip_boxes(boxes, img0_shape)
-    return boxes
-
-
-def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw,auc_roc, img_size, iou_thres, conf_thres, nms_thres,
+def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw, auc_roc,
+              img_size,
+              iou_thres,
+              conf_thres,
+              nms_thres,
               verbose, device, logger):
     """Evaluate model on validation dataset.
 
@@ -151,7 +140,7 @@ def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw,auc_roc,
     if not isinstance(model, torch.nn.Module):
         raise ValueError("model must be an instance of torch.nn.Module")
 
-    #if not isinstance(dataloader, torch.utils.data.DataLoader):
+    # if not isinstance(dataloader, torch.utils.data.DataLoader):
     #    raise ValueError("dataloader must be an instance of torch.utils.data.DataLoader")
 
     if not device.type in ["cuda", "cpu"]:
@@ -170,9 +159,8 @@ def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw,auc_roc,
 
     confusion_matrix = ConfusionMatrix(nc=len(class_names))
 
-
-    p, r, f1, mp, mr, map50, map, t0, t1 = 0., 0., 0., 0., 0., 0., 0., 0., 0.
-    s = ('%20s' + '%12s' * 6) % ('Class', 'Images', 'Targets', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
+    #p, r, f1, mp, mr, map50, map, t0, t1 = 0., 0., 0., 0., 0., 0., 0., 0., 0.
+    #s = ('%20s' + '%12s' * 6) % ('Class', 'Images', 'Targets', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
     if draw or auc_roc:
         if device.type == "cuda":
             eval_plot_outputs = None
@@ -180,10 +168,10 @@ def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw,auc_roc,
         else:
             eval_plot_outputs = torch.tensor(data='')
             eval_plot_targets = torch.tensor(data='')
-
-    for _, imgs, targets in tqdm.tqdm(dataloader, desc="Validating",colour='green'):
-    #for batch_i, (img, targets, paths, shapes) in enumerate(tqdm(dataloader, desc=s)):
-    #for imgs, targets in tqdm.tqdm(dataloader, desc="Validating"):
+    t0 = 0
+    t1 = 0
+    for _, imgs, targets in tqdm.tqdm(dataloader, desc="Validating", colour='green'):
+        # for batch_i, (img, targets, paths, shapes) in enumerate(tqdm(dataloader, desc=s)):
         # Extract labels
         labels += targets[:, 1].tolist()
         # Rescale target
@@ -204,27 +192,49 @@ def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw,auc_roc,
                     torch.cat((eval_plot_outputs, outputs))
                     torch.cat((eval_plot_targets, targets))
 
-
-
             outputs = non_max_suppression(
-                outputs, conf_thres=conf_thres, iou_thres=nms_thres
-            )
-            t1 += time_synchronized() - t
+                outputs, conf_thres=conf_thres, iou_thres=iou_thres
 
+            )
+
+        # Plot
+
+        #if draw:
+        #    f = f'{img_log_path}/images/epoch_batch_{epoch}.jpg'  # filename
+        #    plot_images(images=imgs, targets=eval_plot_outputs, paths=img_log_path, fname=f)
         sample_metrics.extend(get_batch_statistics(outputs, targets, iou_threshold=iou_thres))
 
+
+        '''
+        # Compute statistics
+        stats = [np.concatenate(x, 0) for x in zip(*sample_metrics)]  # to numpy
+        # Concatenate sample statistics
+        true_positives, pred_scores, pred_labels = [
+            np.concatenate(x, 0) for x in list(zip(*sample_metrics))]
+        #stats = ap_per_class(true_positives, pred_scores, pred_labels, labels)
+        if len(stats) and stats[0].any():
+            p, r, ap, f1, ap_class = ap_per_class(true_positives, pred_scores, pred_labels, labels)
+            p = p.mean()
+            r = r.mean()
+            ap50 = ap.mean()
+            ap = ap.mean()  # [P, R, AP@0.5, AP@0.5:0.95]
+            mp, mr, map50, map = p.mean(), r.mean(), ap50.mean(), ap.mean()
+            nt = np.bincount(stats[2].astype(np.int64), minlength=len(class_names))  # number of targets per class
+        else:
+            nt = torch.zeros(1)
+        '''
     if draw or auc_roc:
         eval_plot_outputs = non_max_suppression(
-            eval_plot_outputs, conf_thres=conf_thres, iou_thres=nms_thres
+            eval_plot_outputs, conf_thres=conf_thres, iou_thres=iou_thres
         )
     if draw:
         # Confusion matrix
         confusion_matrix.generate_batch_data(eval_plot_outputs, eval_plot_targets)
-        confusion_matrix.plot(True, img_log_path, class_names,epoch,logger)
+        confusion_matrix.plot(True, img_log_path, class_names, epoch, logger)
 
     if auc_roc:
         aucroc = AUROC(nc=len(class_names), conf=conf_thres, iou_thres=iou_thres)
-        names = model.names if hasattr(model, 'names') else model.module.names  # get class names
+        names = model.names if hasattr(model, 'names') else class_names  # get class names
         if isinstance(names, (list, tuple)):  # old format
             names = dict(enumerate(names))
         # auc roc
@@ -236,26 +246,19 @@ def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw,auc_roc,
             new_name = ['AUC/' + i for i in names.values()]
             auc_scores_name = dict(zip(new_name, auc_scores))
             auc_scores_name['AUC/mAUC'] = mauc
-            aucroc.plot_auroc_curve(fpr_, tpr_, auc_scores, img_log_path, names, epoch,logger)
-            aucroc.plot_polar_chart(auc_scores,img_log_path,names)
-        else:
-            print(f"- ❎ - No detections in validation set -> skipping AOC ROC plotting ----")
+            print(f"- ⏳ - Plotting AUC ROC Curve ----")
+            aucroc.plot_auroc_curve(fpr_, tpr_, auc_scores, img_log_path, names, epoch, logger)
+            print(f"- ✅ - Plotting AUC ROC Curve - DONE ----")
+            print(f"- ⏳ - Plotting AUC ROC Polar Chart ----")
+            aucroc.plot_polar_chart(auc_scores, img_log_path, names)
+            print(f"- ✅ - Plotting AUC ROC Curve - DONE ----")
 
-    #if len(sample_metrics) == 0:  # No detections over whole validation set.
+        else:
+            print(f"- ❎ - No detections in validation set -> skipping AUC ROC and polar plotting ----")
+    t1 += time_synchronized() - t
+    # if len(sample_metrics) == 0:  # No detections over whole validation set.
     #    print("---- No detections over whole validation set ----")
     #    return None
-
-    # Compute statistics
-    '''
-    stats = [np.concatenate(x, 0) for x in zip(*sample_metrics)]  # to numpy
-    if len(stats) and stats[0].any():
-        p, r, ap, f1, ap_class = ap_per_class(*stats, plot=plots, fname='./logs/precision-recall_curve.png')
-        p, r, ap50, ap = p[:, 0], r[:, 0], ap[:, 0], ap.mean(1)  # [P, R, AP@0.5, AP@0.5:0.95]
-        mp, mr, map50, map = p.mean(), r.mean(), ap50.mean(), ap.mean()
-        nt = np.bincount(stats[3].astype(np.int64), minlength=num_classes)  # number of targets per class
-    else:
-        nt = torch.zeros(1)
-    '''
 
     # Concatenate sample statistics
     true_positives, pred_scores, pred_labels = [
@@ -263,11 +266,12 @@ def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw,auc_roc,
     metrics_output = ap_per_class(true_positives, pred_scores, pred_labels, labels)
     print_eval_stats(metrics_output, class_names, verbose)
     # Print speeds
-    # t = tuple(x / seen * 1E3 for x in (t0, t1, t0 + t1)) + (img_size, img_size, batch_size)  # tuple
-    # print('Speed: %.1f/%.1f/%.1f ms inference/NMS/total per %gx%g image at batch-size %g' % t)
+    t = tuple(x / len(dataloader.dataset.img_files) * 1E3 for x in (t0, t1, t0 + t1)) + (img_size, img_size, dataloader.batch_size)  # tuple
+    print('Speed: %.1f/%.1f/%.1f ms inference/NMS/total per %gx%g image at batch-size %g' % t)
     return metrics_output, outputs, targets
 
-def _create_validation_data_loader_v2(img_path, batch_size, img_size, n_cpu,sampler,class_names,img_log_path):
+
+def _create_validation_data_loader_v2(img_path, batch_size, img_size, n_cpu, sampler, class_names, img_log_path):
     """
     Creates a DataLoader for validation.
 
@@ -282,22 +286,22 @@ def _create_validation_data_loader_v2(img_path, batch_size, img_size, n_cpu,samp
     :return: Returns DataLoader
     :rtype: DataLoader
     """
-    #if sampler == 0:
+    # if sampler == 0:
     dataset = ListDataset(img_path, img_size=img_size, multiscale=False, transform=DEFAULT_TRANSFORMS)
     shuffle = True
-    #else:
+    # else:
     #    dataset = LoadImagesAndLabels(img_path, img_size, batch_size,
     #                              augment=False,  # augment images
     #                              )
     #    shuffle = False
     # batch_size = min(batch_size, len(dataset))
     # [0 = None, 1 = SequentialSampler, 2 = RandomSampler, 3 = SubsetRandomSampler, 4 = WeightedRandomSampler, 5 = BatchSampler]
-    #set_suffle = True
+    # set_suffle = True
     if sampler == 1:
         sampler = SequentialSampler(
             data_source=dataset
         )
-        #set_suffle = False
+        # set_suffle = False
 
     elif sampler == 2:
         # class_weights_all = get_class_weights(dataset, class_names, "orig",img_log_path)
@@ -305,14 +309,14 @@ def _create_validation_data_loader_v2(img_path, batch_size, img_size, n_cpu,samp
             data_source=dataset,
             num_samples=batch_size,
         )
-        #set_suffle = False
+        # set_suffle = False
 
     elif sampler == 3:
         sampler = SubsetRandomSampler(
             indices=[10, 20, 30, 40, 50]
 
         )
-        #set_suffle = False
+        # set_suffle = False
 
     elif sampler == 4:
         # https://towardsdatascience.com/pytorch-basics-sampling-samplers-2a0f29f0bf2a
@@ -326,7 +330,7 @@ def _create_validation_data_loader_v2(img_path, batch_size, img_size, n_cpu,samp
             weights=class_weights_orig,
             replacement=True
         )
-        #set_suffle = False
+        # set_suffle = False
 
     elif sampler == 5:
         sampler = BatchSampler(
@@ -334,7 +338,7 @@ def _create_validation_data_loader_v2(img_path, batch_size, img_size, n_cpu,samp
             batch_size=3,
             drop_last=True
         )
-        #set_suffle = False
+        # set_suffle = False
 
     else:
         sampler = None
@@ -348,6 +352,7 @@ def _create_validation_data_loader_v2(img_path, batch_size, img_size, n_cpu,samp
         pin_memory=True,
         collate_fn=dataset.collate_fn)
     return dataloader
+
 
 def _create_validation_data_loader_v1(img_path, batch_size, img_size, n_cpu):
     """
@@ -377,22 +382,27 @@ def _create_validation_data_loader_v1(img_path, batch_size, img_size, n_cpu):
 
 def run():
     date = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
-    ver = "0.3.15"
+    ver = "1.1.0"
     # print_environment_info()
+    warnings.filterwarnings('ignore', category=UserWarning, append=True)
     print_environment_info(ver, "logs/" + date + "_log" + ".txt")
     parser = argparse.ArgumentParser(description="Evaluate validation data.")
-    parser.add_argument("-m", "--model", type=str, default="config/yolov3.cfg",
+    parser.add_argument("-m", "--model", type=str, default="./config/yolov3.cfg",
                         help="Path to model definition file (.cfg)")
     parser.add_argument("-w", "--weights", type=str, default="weights/yolov3.weights",
                         help="Path to weights or checkpoint file (.weights or .pth)")
     parser.add_argument("-d", "--data", type=str, default="config/coco.data", help="Path to data config file (.data)")
+    parser.add_argument("--hyp", type=str, default="./config/hyp.cfg",
+                        help="Path to hyperparameters config file (.cfg)")
     parser.add_argument("-b", "--batch_size", type=int, default=8, help="Size of each image batch")
     parser.add_argument("-v", "--verbose", action='store_true', help="Makes the validation more verbose")
     parser.add_argument("--img_size", type=int, default=416, help="Size of each image dimension for yolo")
     parser.add_argument("--n_cpu", type=int, default=4, help="Number of cpu threads to use during batch generation")
-    parser.add_argument("--iou_thres", type=float, default=0.5, help="IOU threshold required to qualify as detected")
-    parser.add_argument("--conf_thres", type=float, default=0.01, help="Object confidence threshold")
-    parser.add_argument("--nms_thres", type=float, default=0.4, help="IOU threshold for non-maximum suppression")
+    parser.add_argument("--iou_thres", type=float, default=0.2, help="IOU threshold required to qualify as detected")
+    parser.add_argument("--conf_thres", type=float, default=0.1, help="Object confidence threshold")
+    parser.add_argument("--nms_thres", type=float, default=0.3, help="IOU threshold for non-maximum suppression")
+    parser.add_argument("--logdir", type=str, default="logs",
+                        help="Directory for validation log files")
     args = parser.parse_args()
     print(f"Command line arguments: {args}")
 
@@ -402,13 +412,27 @@ def run():
     valid_path = data_config["valid"]
     class_names = load_classes(data_config["names"])  # List of class names
     verbose = True
+    model_name = args.weights.replace('.weights', '')
+    model_name = model_name.replace('.pth', '')
+    if model_name.find('\\') != -1:
+        model_name = model_name.split('\\')[-1] + '_validate'
+    else:
+        model_name = model_name.split('/')[-1] + '_validate'
+    model_logs_path = f'{args.logdir}/{model_name}'
+    local_path = os.getcwd()
+    # Check if logs folder exists
+    logs_path_there = os.path.exists(local_path + '/' + model_logs_path)
+    if not logs_path_there:
+        os.mkdir(local_path + '/' + model_logs_path)
+    # Get hyperparameters configuration
+    hyp_config = parse_hyp_config(args.hyp)
     # GPU determination
     if torch.cuda.is_available() is True:
         device = torch.device("cuda")
     else:
         device = torch.device("cpu")
     print(f'Using cuda device - {device}')
-    precision, recall, AP, f1, ap_class = evaluate_model_file(
+    metrics_output, eval_outputs, eval_targets = evaluate_model_file(
         args.model,
         args.weights,
         valid_path,
@@ -420,8 +444,51 @@ def run():
         conf_thres=args.conf_thres,
         nms_thres=args.nms_thres,
         verbose=verbose,
-        device=device
+        device=device,
+        model_imgs_logs_path=model_logs_path,
+        epoch="Validation",
+        draw=True,
+        auc_roc=True,
+        logger=None,
+        hyp=hyp_config
     )
+    precision, recall, AP, f1, ap_class = metrics_output
+    csv_writer("", f"{model_logs_path}/{model_name}_eval_stats.csv", 'w')
+    eval_stats_class_array = np.array([])
+    eval_stats_ap_array = np.array([])
+    eval_stats_pr_array = np.array([])
+    eval_stats_rc_array = np.array([])
+    eval_stats_f1_array = np.array([])
+    for i, c in enumerate(ap_class):
+        data = [c,  # Class index
+                class_names[i],  # Class name
+                "%.5f" % AP[i],  # Class AP
+                precision[i],  # Precision
+                recall[i],  # Recall
+                f1[i]  # f1
+                ]
+        eval_stats_class_array = np.concatenate(
+            (eval_stats_class_array, np.array([class_names[i]])))
+        eval_stats_ap_array = np.concatenate((eval_stats_ap_array, np.array([AP[i]])))
+        eval_stats_pr_array = np.concatenate((eval_stats_pr_array, np.array([precision[i]])))
+        eval_stats_rc_array = np.concatenate((eval_stats_rc_array, np.array([recall[i]])))
+        eval_stats_f1_array = np.concatenate((eval_stats_f1_array, np.array([f1[i]])))
+        csv_writer(data, f"{model_logs_path}/{model_name}_eval_stats.csv", 'a')
+
+    # Write mAP value as last line
+    data = ["--",  #
+            'mAP',  #
+            str(round(AP.mean(), 5)),
+            ]
+    csv_writer(data, f"{model_logs_path}/{model_name}_eval_stats.csv", 'a')
+    img_writer_eval_stats(eval_stats_class_array, eval_stats_ap_array,
+                          f"{model_logs_path}/{model_name}_AP")
+    img_writer_eval_stats(eval_stats_class_array, eval_stats_pr_array,
+                          f"{model_logs_path}/{model_name}_precision")
+    img_writer_eval_stats(eval_stats_class_array, eval_stats_rc_array,
+                          f"{model_logs_path}/{model_name}_recall")
+    img_writer_eval_stats(eval_stats_class_array, eval_stats_f1_array,
+                          f"{model_logs_path}/{model_name}_f1")
 
 
 if __name__ == "__main__":

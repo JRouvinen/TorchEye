@@ -1263,7 +1263,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
 
 
 if __name__ == "__main__":
-    ver = "1.1.2"
+    ver = "1.1.4"
     warnings.filterwarnings('ignore', category=UserWarning, append=True)
     # Check folders
     check_folders()
@@ -1282,9 +1282,9 @@ if __name__ == "__main__":
     parser.add_argument("--evaluation_interval", type=int, default=10,
                         help="Interval of epochs between evaluations on validation set")
     parser.add_argument("--multiscale_training", action="store_true", help="Allow multi-scale training")
-    parser.add_argument("--iou_thres", type=float, default=0.1,
+    parser.add_argument("--iou_thres", type=float, default=0.3,
                         help="Evaluation: IOU threshold required to qualify as detected")
-    parser.add_argument("--conf_thres", type=float, default=0.1, help="Evaluation: Object confidence threshold")
+    parser.add_argument("--conf_thres", type=float, default=0.3, help="Evaluation: Object confidence threshold")
     parser.add_argument("--nms_thres", type=float, default=0.3,
                         help="Evaluation: IOU threshold for non-maximum suppression")
     parser.add_argument("--sync_bn", type=int, default=-1,

@@ -320,7 +320,7 @@ class Darknet(nn.Module):
         fp.close()
 
 
-def load_model(model_path, hyp,gpu, weights_path=None):
+def load_model(model_path, hyp, gpu, weights_path=None):
     """Loads the yolo model from file.
 
     :param model_path: Path to model definition file (.cfg)

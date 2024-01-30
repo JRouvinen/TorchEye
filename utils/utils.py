@@ -354,7 +354,7 @@ def non_max_suppression(prediction, conf_thres=0.25, iou_thres=0.45, classes=Non
     max_wh = 4096
     max_det = 300  # maximum number of detections per image
     max_nms = 30000  # maximum number of boxes into torchvision.ops.nms()
-    time_limit = 30.0  # seconds to quit after
+    time_limit = 10.0  # seconds to quit after
     multi_label = nc > 1  # multiple labels per box (adds 0.5ms/img)
 
     t = time.time()
