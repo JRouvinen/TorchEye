@@ -237,7 +237,7 @@ def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw,auc_roc,
             auc_scores_name = dict(zip(new_name, auc_scores))
             auc_scores_name['AUC/mAUC'] = mauc
             aucroc.plot_auroc_curve(fpr_, tpr_, auc_scores, img_log_path, names, epoch,logger)
-            #aucroc.plot_polar_chart(auc_scores,img_log_path,names)
+            aucroc.plot_polar_chart(auc_scores,img_log_path,names)
         else:
             print(f"- ❎ - No detections in validation set -> skipping AOC ROC plotting ----")
 

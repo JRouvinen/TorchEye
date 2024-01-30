@@ -3,7 +3,7 @@
 # Author: Juha-Matti Rouvinen
 # Date: 2024-01-24
 # Updated: 2024-01-27
-# Version V1.3
+# Version V1.3.1
 # This implementation is based on the code from: https://github.com/haooyuee/YOLOv5-AUC-ROC-MedDetect/
 ##################################
 
@@ -205,7 +205,7 @@ class AUROC:
                 #ax.annotate(f"{names.values[i]}", (100, yhat[-1]), color="w")
             indx += 1
             color_indx += 1
-            if color_indx > len(colors):
+            if color_indx >= len(colors):
                 color_indx = 0
         indx = 0
         textstr = ""
