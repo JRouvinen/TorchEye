@@ -102,9 +102,12 @@ def autobatch(model, imagesize=640, fraction=0.8, batch_size=16):
     print(f'- ↩ - {d} ({properties.name}) {t:.2f}G total, {r:.2f}G reserved, {a:.2f}G allocated, {f:.2f}G free ----')
 
     # Profile batch sizes
-    #batch_sizes = [1, 2, 4, 8, 16]
-    #batch_sizes = [1, 2, 4, 8, 16, 32, 64]
-    batch_sizes = [1, 2, 4, 8, 16, 32]
+    if t <= 6:
+        batch_sizes = [1, 2, 4, 8]
+    elif t <= 16:
+        batch_sizes = [1, 2, 4, 8, 16, 32]
+    else:
+        batch_sizes = [1, 2, 4, 8, 16, 32, 64]
 
     try:
         img = [torch.empty(b, 3, imagesize, imagesize) for b in batch_sizes]
@@ -126,4 +129,4 @@ def autobatch(model, imagesize=640, fraction=0.8, batch_size=16):
 
     fraction = (np.polyval(p, b) + r + a) / t  # actual fraction predicted
     print(f'- ✅ - Using batch-size {b} for {d} {t * fraction:.2f}G/{t:.2f}G ({fraction * 100:.0f}%) ----')
-    return b
+    return b, t

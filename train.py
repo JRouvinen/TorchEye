@@ -63,11 +63,9 @@ import sys
 import time
 import traceback
 import configparser
-from test import _evaluate, _create_validation_data_loader
 import tqdm
 import torch
-from torch.optim.lr_scheduler import ConstantLR, ExponentialLR
-from torch.utils.data import DataLoader
+import warnings
 import torch.optim as optim
 import numpy as np
 from torchsummary import summary
@@ -77,6 +75,10 @@ from torch.cuda import amp
 from utils import threaded
 from utils.confusion_matrix import ConfusionMatrix
 from utils.torch_utils import ModelEMA
+from torch.optim.lr_scheduler import ConstantLR, ExponentialLR
+from torch.utils.data import DataLoader
+from test import _evaluate, _create_validation_data_loader_v1, _create_validation_data_loader_v2
+
 # Profilers
 # from profilehooks import profile
 # from line_profiler import profile
@@ -89,7 +91,8 @@ from utils.autobatcher import check_train_batch_size
 from utils.logger import Logger
 from utils.utils import (to_cpu, load_classes, print_environment_info, provide_determinism,
                          worker_seed_set, one_cycle, check_img_size,
-                         labels_to_image_weights, labels_to_class_weights, tensor_to_np_array, check_git_status)
+                         labels_to_image_weights, labels_to_class_weights, tensor_to_np_array, check_git_status,
+                         check_file_exists)
 from utils.datasets import ListDataset
 from utils.augmentations import AUGMENTATION_TRANSFORMS
 from utils.parse_config import parse_data_config, parse_hyp_config
@@ -159,6 +162,7 @@ def find_and_del_last_ckpt():
     # Delete the oldest .pth file
     os.remove(oldest_file)
 
+
 # Python code to check and create necessary folders for logging, checkpoints, and output.
 
 def check_folders():
@@ -172,17 +176,18 @@ def check_folders():
     if not logs_path_there:
         os.mkdir(local_path + "/logs/profiles/")
     # Check if checkpoints folder exists
-    #ckpt_path_there = os.path.exists(local_path + "/checkpoints/")
-    #if not ckpt_path_there:
+    # ckpt_path_there = os.path.exists(local_path + "/checkpoints/")
+    # if not ckpt_path_there:
     #    os.mkdir(local_path + "/checkpoints/")
     # Check if checkpoints/best folder exists
-    #ckpt_best_path_there = os.path.exists(local_path + "/checkpoints/best/")
-    #if not ckpt_best_path_there:
+    # ckpt_best_path_there = os.path.exists(local_path + "/checkpoints/best/")
+    # if not ckpt_best_path_there:
     #    os.mkdir(local_path + "/checkpoints/best/")
     # Check if output folder exists
     output_path_there = os.path.exists(local_path + "/output/")
     if not output_path_there:
         os.mkdir(local_path + "/output/")
+
 
 @threaded()
 def run_tensorboard(tracking_address):
@@ -337,8 +342,8 @@ def run(args, data_config, hyp_config, ver, clearml=None):
         csv_writer(header, model_logs_path + "/" + model_name + "_evaluation_plots.csv", 'a')
 
         # Create validation csv file
-        #header = ['Index', 'Class', 'AP']
-        #csv_writer(header, f"checkpoints/best/{model_name}_eval_stats.csv", 'a')
+        # header = ['Index', 'Class', 'AP']
+        # csv_writer(header, f"checkpoints/best/{model_name}_eval_stats.csv", 'a')
         '''
         346-430
         This code is used for training a model. It includes the following steps:
@@ -423,13 +428,13 @@ def run(args, data_config, hyp_config, ver, clearml=None):
 
         batch_size = model.hyperparams['batch']
         try:
-            batch_size = check_train_batch_size(model, model.hyperparams['height'], cuda_available)
+            batch_size, gpu_mem_available = check_train_batch_size(model, model.hyperparams['height'], cuda_available)
             sub_div = 1
         except:
             batch_size = model.hyperparams['batch']
             sub_div = model.hyperparams['subdivisions']
 
-        mini_batch_size = batch_size // sub_div
+        mini_batch_size = batch_size // 2
         nbs = 64  # nominal batch size
         accumulate = max(round(nbs / batch_size), 1)  # accumulate loss before optimizing
         hyp_config['weight_decay'] = float(
@@ -528,7 +533,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
         # #################
         pretrained = args.pretrained_weights.endswith('.pth')
         if pretrained:
-            #resume = True
+            # resume = True
             warmup_run = False
             lr_restart = True
             lr = float(hyp_config['lr0'])
@@ -570,11 +575,13 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                                        hyp=hyp_config, augment=True,cache=False, rect=True,
                                        rank=-1, world_size=1, workers=int(args.n_cpu))  # testloader
         '''
-        validation_dataloader = _create_validation_data_loader(
+        validation_dataloader = _create_validation_data_loader_v1(
             valid_path,
             mini_batch_size,
             model.hyperparams['height'],
-            args.n_cpu)
+            args.n_cpu
+
+        )
 
         warmup_epochs = float(hyp_config['warmup_epochs'])
         if warmup_epochs > 5.0:
@@ -640,7 +647,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
                     optimizer,
                     'min',
-                    patience=int(args.evaluation_interval)*10,
+                    patience=int(args.evaluation_interval) * 10,
                     min_lr=minimum_lr,
                     cooldown=int(args.evaluation_interval),
                     verbose=False)
@@ -755,7 +762,8 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                 print(f'- 🔥 - Running warmup cycle ----')
             if torch.cuda.is_available():
                 mem = '%.3gG' % (torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0)  # (GB)
-                print(f'---- GPU Memory usage: {mem} ----')
+                percents = round((torch.cuda.memory_reserved() / 1E9) / gpu_mem_available, 2) * 100
+                print(f'---- GPU Memory usage: {mem} / {percents} % ----')
             model.train()  # Set model to training mode
             mloss = torch.zeros(4, device=device)  # mean losses
             # https://pytorch.org/tutorials/recipes/recipes/tuning_guide.html
@@ -846,8 +854,6 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                     if ema:
                         ema.update(model)
 
-
-
                 # Scheduler
                 # scheduler.get_last_lr()
                 if req_scheduler != 'ReduceLROnPlateau':
@@ -893,7 +899,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                         # Tensorflow logger - learning rate V0.3.4I
                         logger.scalar_summary("train/learning rate", np.mean(lr), epoch)
                         # Tensorflow logger - pr curve - V1.0
-                        #logger.add_pr_curve('pr_curve', targets, pred, epoch)
+                        # logger.add_pr_curve('pr_curve', targets, pred, epoch)
                     model.seen += imgs.size(0)
 
                     # ############
@@ -956,14 +962,13 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                     img_writer_training(iou_loss_array, obj_loss_array, cls_loss_array, train_loss_array, lr_array,
                                         batch_loss_array,
                                         batches_array,
-                                        model_logs_path + '/' + model_name,logger)
+                                        model_logs_path + '/' + model_name, logger)
             # #############
             # Save progress -> changed on version 0.3.11F to save every eval epoch
             # #############
             # Reason to eval epoch change: uploads get stucked when using clearml and larger models
             #
             if epoch % args.evaluation_interval == 0:
-
 
                 # Save last model to checkpoint file
                 # Updated on version 0.3.0 to save only last
@@ -1037,10 +1042,9 @@ def run(args, data_config, hyp_config, ver, clearml=None):
 
                 )
 
-
                 # Plot
                 # if args.evaluation_interval % epoch == 0 and args.verbose:
-                #if args.draw:
+                # if args.draw:
                 #    f = f'{model_logs_path}/images/epoch_batch_{epoch}.jpg'  # filename
                 #    plot_images(images=imgs, targets=list(pred), paths=model_logs_path, fname=f)
                 #    # if tb_writer:
@@ -1048,8 +1052,8 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                 #    #     tb_writer.add_graph(model, imgs)  # add model to tensorboard
 
                 # Create confusion matrix -> changed in version 0.4.7
-                #confusion_matrix.generate_batch_data(eval_outputs, eval_targets)
-                #confusion_matrix.plot(True, model_imgs_logs_path, class_names)
+                # confusion_matrix.generate_batch_data(eval_outputs, eval_targets)
+                # confusion_matrix.plot(True, model_imgs_logs_path, class_names)
 
                 if metrics_output is not None:
                     precision, recall, AP, f1, ap_class = metrics_output
@@ -1108,7 +1112,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                     f1_array = np.concatenate((f1_array, np.array([f1.mean()])))
                     img_writer_evaluation(precision_array, recall_array, m_ap_array, f1_array,
                                           curr_fitness_array, train_fitness_array, eval_epoch_array,
-                                          model_logs_path + '/' + model_name,logger)
+                                          model_logs_path + '/' + model_name, logger)
 
                     if curr_fitness > best_fitness and epoch:
                         best_fitness = curr_fitness
@@ -1116,23 +1120,25 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                         print(f"- ⭐ - Saving best checkpoint to: '{checkpoint_path}'  ----")
                         torch.save(model.state_dict(), checkpoint_path)
                         if args.draw:
-                            #Make a copy of best checkpoint confusion matrix
+                            # Make a copy of best checkpoint confusion matrix
                             shutil.copyfile(f'{model_imgs_logs_path}/confusion_matrix_last.png',
                                             f'{model_imgs_logs_path}/confusion_matrix_best.png')
-                            #Report to tensorboard
-                            #file_to_save = open_file(f'{model_imgs_logs_path}/confusion_matrix_best.png')
-                            #if logger is not None:
+                            # Report to tensorboard
+                            # file_to_save = open_file(f'{model_imgs_logs_path}/confusion_matrix_best.png')
+                            # if logger is not None:
                             #    logger.add_figure('confusion_matrix_best', file_to_save, global_step=epoch, close=True,
                             #                      walltime=None)
-                            #logger.add_image(f, result, dataformats='HWC', global_step=epoch)
+                            # logger.add_image(f, result, dataformats='HWC', global_step=epoch)
 
                         if args.auc_roc:
-                            # Make a copy of best checkpoint auc roc curve
-                            shutil.copyfile(f'{model_imgs_logs_path}/auc_roc_curve_last.png',
-                                            f'{model_imgs_logs_path}/auc_roc_curve_best.png')
+                            file_exists = check_file_exists(f'{model_imgs_logs_path}/auc_roc_curve_last.png')
+                            if file_exists:
+                                # Make a copy of best checkpoint auc roc curve
+                                shutil.copyfile(f'{model_imgs_logs_path}/auc_roc_curve_last.png',
+                                                f'{model_imgs_logs_path}/auc_roc_curve_best.png')
                             # Report to tensorboard
-                            #file_to_save = open_file(f'{model_imgs_logs_path}/auc_roc_curve_best.png')
-                            #if logger is not None:
+                            # file_to_save = open_file(f'{model_imgs_logs_path}/auc_roc_curve_best.png')
+                            # if logger is not None:
                             #    logger.add_figure('auc_roc_curve_best', file_to_save, global_step=epoch, close=True,
                             #                      walltime=None)
                         ############################
@@ -1163,7 +1169,8 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                                 (eval_stats_class_array, np.array([class_names[i]])))
                             eval_stats_ap_array = np.concatenate((eval_stats_ap_array, np.array([AP[i]])))
                             if logger is not None:
-                                logger.scalar_summary(f"validation/class/{class_names[i]}", round(float(AP[i]), 5), epoch)
+                                logger.scalar_summary(f"validation/class/{class_names[i]}", round(float(AP[i]), 5),
+                                                      epoch)
                             csv_writer(data, f"{model_logs_path}/{model_name}_eval_stats.csv", 'a')
 
                         # Write mAP value as last line
@@ -1256,10 +1263,11 @@ def run(args, data_config, hyp_config, ver, clearml=None):
 
 
 if __name__ == "__main__":
-    ver = "1.0.0"
+    ver = "1.1.2"
+    warnings.filterwarnings('ignore', category=UserWarning, append=True)
     # Check folders
     check_folders()
-    parser = argparse.ArgumentParser(description="Trains the YOLOv3 model.")
+    parser = argparse.ArgumentParser(description="Trains the YOLOv3/4 model.")
     parser.add_argument("-m", "--model", type=str, default="config/yolov3.cfg",
                         help="Path to model definition file (.cfg)")
     parser.add_argument("-d", "--data", type=str, default="config/coco.data",

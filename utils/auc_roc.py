@@ -3,7 +3,7 @@
 # Author: Juha-Matti Rouvinen
 # Date: 2024-01-24
 # Updated: 2024-01-27
-# Version V1.2
+# Version V1.3
 # This implementation is based on the code from: https://github.com/haooyuee/YOLOv5-AUC-ROC-MedDetect/
 ##################################
 
@@ -128,16 +128,20 @@ class AUROC:
         for class_id in range(self.nc):
             labels = self.true[class_id]
             preds = self.pred[class_id]
-            try:
-                fpr_class, tpr_class, _ = roc_curve(labels, preds)
-                auc_scores[class_id] = roc_auc_score(labels, preds)
-                fpr_[class_id] = fpr_class
-                tpr_[class_id] = tpr_class
+            pos_label = None
+            if len(labels) > 0:
+                if len(labels) == 1 and labels[0] == 1:
+                    pos_label = True
+                try:
+                    fpr_class, tpr_class, _ = roc_curve(labels, preds, pos_label=pos_label)
+                    auc_scores[class_id] = roc_auc_score(labels, preds)
+                    fpr_[class_id] = fpr_class
+                    tpr_[class_id] = tpr_class
 
-            except ValueError:
-                # No pred = set auc to 0
-                # print('No pred db for cls ' + str(class_id) + ', Set the auc value to 0 ...')
-                auc_scores[class_id] = 0
+                except ValueError:
+                    # No pred = set auc to 0
+                    # print('No pred db for cls ' + str(class_id) + ', Set the auc value to 0 ...')
+                    auc_scores[class_id] = 0
 
         return auc_scores, fpr_, tpr_
 
@@ -174,41 +178,46 @@ class AUROC:
         #print('plot_polar_chart DONE')
 
     def plot_auroc_curve(self, fpr_, tpr_, auc_scores, save_dir='', names=(),epoch=0,logger=None):
+        # Set color table
+        colors = ['tab:blue',
+                  'tab:orange',
+                  'tab:green',
+                  'tab:red',
+                  'tab:purple',
+                  'tab:brown',
+                  'tab:pink',
+                  'tab:gray',
+                  'tab:olive',
+                  'tab:cyan'
+                  ]
         # AUROC curve
         fig, ax = plt.subplots(1, 1, figsize=(9, 6), tight_layout=True)
-        if 0 < len(names) < 21:  # display per-class legend if < 21 classes
-            #ax.plot(fpr_[1], tpr_[1], linewidth=1, label=f'{names} {auc_scores}')
-            #X_Y_Spline = make_interp_spline(tpr_[1], fpr_[1])
-            # Returns evenly spaced numbers
-            # over a specified interval.
-            x_tensor = tpr_[1]
-            X_ = np.linspace(x_tensor.min(), x_tensor.max(),x_tensor.size)
-            Y_ = fpr_[1]
-            yhat = savgol_filter(Y_, Y_.size, 3)  # window size 51, polynomial order 3
-            # Plotting the Graph
-            ax.plot(X_, yhat, linewidth=1, color='blue')
-            # Generate label-score dict
-            #label_score_dict = {}
-            indx = 0
-            textstr = ""
-            for x in names.values():
-                #label_score_dict[x] = f'{auc_scores[indx]:.3f}'
-                textstr += f'\n{x} - {auc_scores[indx]:.3f}'
-                indx += 1
-
-            # these are matplotlib.patch.Patch properties
-            props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
-            # place a text box in upper left in axes coords
-            ax.text(0.8, 0.1, textstr, transform=ax.transAxes, fontsize=10,
-                    verticalalignment='bottom', bbox=props)
-
-        else:
-            x_tensor = tpr_[1]
-            X_ = np.linspace(x_tensor.min(), x_tensor.max(), x_tensor.size)
-            Y_ = fpr_[1]
-            yhat = savgol_filter(Y_, Y_.size, 3)  # window size 51, polynomial order 3
-            # Plotting the Graph
-            ax.plot(X_, yhat, linewidth=1, color='blue')
+        indx = 0
+        color_indx = 0
+        for i in tpr_:
+            x_tensor = i
+            if len(x_tensor) > 0:
+                X_ = np.linspace(x_tensor.min(), x_tensor.max(), x_tensor.size)
+                Y_ = fpr_[indx]
+                yhat = savgol_filter(Y_, Y_.size, Y_.size-1)  # window size 51, polynomial order 3
+                # Plotting the Graph
+                ax.plot(X_, yhat, linewidth=1, color=colors[color_indx])
+                #ax.annotate(f"{names.values[i]}", (100, yhat[-1]), color="w")
+            indx += 1
+            color_indx += 1
+            if color_indx > len(colors):
+                color_indx = 0
+        indx = 0
+        textstr = ""
+        for x in names.values():
+            #label_score_dict[x] = f'{auc_scores[indx]:.3f}'
+            textstr += f'\n{x} - {auc_scores[indx]:.3f}'
+            indx += 1
+        # these are matplotlib.patch.Patch properties
+        props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+        # place a text box in upper left in axes coords
+        ax.text(0.8, 0.1, textstr, transform=ax.transAxes, fontsize=10,
+                verticalalignment='bottom', bbox=props)
 
         ax.plot([0, 1], [0, 1], linestyle='--', color='black', linewidth=1)  # diagonal line
         ax.set_xlabel('False Positive Rate')

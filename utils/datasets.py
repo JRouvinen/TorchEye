@@ -79,7 +79,7 @@ class ImageFolder(Dataset):
 
 
 class ListDataset(Dataset):
-    def __init__(self, list_path, img_size=416, multiscale=True, transform=None):
+    def __init__(self, list_path, img_size=416, multiscale=True, transform=None,image_weights=False):
         with open(list_path, "r") as file:
             self.img_files = file.readlines()
 
@@ -100,6 +100,7 @@ class ListDataset(Dataset):
         self.max_size = self.img_size + 3 * 32
         self.batch_count = 0
         self.transform = transform
+        self.image_weights = image_weights
 
     def __getitem__(self, index):
 

@@ -14,18 +14,20 @@ import datetime
 import tqdm
 from terminaltables import AsciiTable
 from torch.autograd import Variable
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, SequentialSampler, RandomSampler, SubsetRandomSampler, WeightedRandomSampler, \
+    BatchSampler
 
 from models import *
 from utils.auc_roc import AUROC
 from utils.confusion_matrix import ConfusionMatrix
 from utils.datasets import ListDataset
+from utils.datasets_v2 import LoadImagesAndLabels
 from utils.parse_config import parse_data_config
 from utils.plots import plot_images
 from utils.torch_utils import time_synchronized
 from utils.transforms import DEFAULT_TRANSFORMS
 from utils.utils import load_classes, ap_per_class, get_batch_statistics, non_max_suppression, xywh2xyxy, \
-    print_environment_info
+    print_environment_info, get_class_weights
 
 
 def evaluate_model_file(model_path, weights_path, img_path, class_names, batch_size, img_size,
@@ -149,8 +151,8 @@ def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw,auc_roc,
     if not isinstance(model, torch.nn.Module):
         raise ValueError("model must be an instance of torch.nn.Module")
 
-    if not isinstance(dataloader, torch.utils.data.DataLoader):
-        raise ValueError("dataloader must be an instance of torch.utils.data.DataLoader")
+    #if not isinstance(dataloader, torch.utils.data.DataLoader):
+    #    raise ValueError("dataloader must be an instance of torch.utils.data.DataLoader")
 
     if not device.type in ["cuda", "cpu"]:
         raise ValueError("Invalid device type")
@@ -170,7 +172,7 @@ def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw,auc_roc,
 
 
     p, r, f1, mp, mr, map50, map, t0, t1 = 0., 0., 0., 0., 0., 0., 0., 0., 0.
-    #s = ('%20s' + '%12s' * 6) % ('Class', 'Images', 'Targets', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
+    s = ('%20s' + '%12s' * 6) % ('Class', 'Images', 'Targets', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
     if draw or auc_roc:
         if device.type == "cuda":
             eval_plot_outputs = None
@@ -180,7 +182,8 @@ def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw,auc_roc,
             eval_plot_targets = torch.tensor(data='')
 
     for _, imgs, targets in tqdm.tqdm(dataloader, desc="Validating",colour='green'):
-        # for batch_i, (img, targets, paths, shapes) in enumerate(tqdm(dataloader, desc=s)):
+    #for batch_i, (img, targets, paths, shapes) in enumerate(tqdm(dataloader, desc=s)):
+    #for imgs, targets in tqdm.tqdm(dataloader, desc="Validating"):
         # Extract labels
         labels += targets[:, 1].tolist()
         # Rescale target
@@ -201,9 +204,7 @@ def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw,auc_roc,
                     torch.cat((eval_plot_outputs, outputs))
                     torch.cat((eval_plot_targets, targets))
 
-                eval_plot_outputs = non_max_suppression(
-                    eval_plot_outputs, conf_thres=conf_thres, iou_thres=nms_thres
-                )
+
 
             outputs = non_max_suppression(
                 outputs, conf_thres=conf_thres, iou_thres=nms_thres
@@ -212,6 +213,10 @@ def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw,auc_roc,
 
         sample_metrics.extend(get_batch_statistics(outputs, targets, iou_threshold=iou_thres))
 
+    if draw or auc_roc:
+        eval_plot_outputs = non_max_suppression(
+            eval_plot_outputs, conf_thres=conf_thres, iou_thres=nms_thres
+        )
     if draw:
         # Confusion matrix
         confusion_matrix.generate_batch_data(eval_plot_outputs, eval_plot_targets)
@@ -262,8 +267,89 @@ def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw,auc_roc,
     # print('Speed: %.1f/%.1f/%.1f ms inference/NMS/total per %gx%g image at batch-size %g' % t)
     return metrics_output, outputs, targets
 
+def _create_validation_data_loader_v2(img_path, batch_size, img_size, n_cpu,sampler,class_names,img_log_path):
+    """
+    Creates a DataLoader for validation.
 
-def _create_validation_data_loader(img_path, batch_size, img_size, n_cpu):
+    :param img_path: Path to file containing all paths to validation images.
+    :type img_path: str
+    :param batch_size: Size of each image batch
+    :type batch_size: int
+    :param img_size: Size of each image dimension for yolo
+    :type img_size: int
+    :param n_cpu: Number of cpu threads to use during batch generation
+    :type n_cpu: int
+    :return: Returns DataLoader
+    :rtype: DataLoader
+    """
+    #if sampler == 0:
+    dataset = ListDataset(img_path, img_size=img_size, multiscale=False, transform=DEFAULT_TRANSFORMS)
+    shuffle = True
+    #else:
+    #    dataset = LoadImagesAndLabels(img_path, img_size, batch_size,
+    #                              augment=False,  # augment images
+    #                              )
+    #    shuffle = False
+    # batch_size = min(batch_size, len(dataset))
+    # [0 = None, 1 = SequentialSampler, 2 = RandomSampler, 3 = SubsetRandomSampler, 4 = WeightedRandomSampler, 5 = BatchSampler]
+    #set_suffle = True
+    if sampler == 1:
+        sampler = SequentialSampler(
+            data_source=dataset
+        )
+        #set_suffle = False
+
+    elif sampler == 2:
+        # class_weights_all = get_class_weights(dataset, class_names, "orig",img_log_path)
+        sampler = RandomSampler(
+            data_source=dataset,
+            num_samples=batch_size,
+        )
+        #set_suffle = False
+
+    elif sampler == 3:
+        sampler = SubsetRandomSampler(
+            indices=[10, 20, 30, 40, 50]
+
+        )
+        #set_suffle = False
+
+    elif sampler == 4:
+        # https://towardsdatascience.com/pytorch-basics-sampling-samplers-2a0f29f0bf2a
+        # https://towardsdatascience.com / demystifying - pytorchs - weightedrandomsampler - by - example - a68aceccb452
+        # class_weights_all = get_class_weights(dataset, class_names, "orig", img_log_path)
+        class_weights_orig, class_count = get_class_weights(dataset, class_names, "evaluate", img_log_path)
+        sampler = WeightedRandomSampler(
+            num_samples=batch_size * 2,
+            # Adjusting this parameter to double the size of our original dataset,
+            # we can see that more of our images are seen over the course of an epoch.
+            weights=class_weights_orig,
+            replacement=True
+        )
+        #set_suffle = False
+
+    elif sampler == 5:
+        sampler = BatchSampler(
+            SequentialSampler(range(10)),
+            batch_size=3,
+            drop_last=True
+        )
+        #set_suffle = False
+
+    else:
+        sampler = None
+
+    dataloader = DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        num_workers=n_cpu,
+        sampler=sampler,
+        pin_memory=True,
+        collate_fn=dataset.collate_fn)
+    return dataloader
+
+def _create_validation_data_loader_v1(img_path, batch_size, img_size, n_cpu):
     """
     Creates a DataLoader for validation.
 

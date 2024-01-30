@@ -40,8 +40,10 @@ def check_git_status():
     else:
         print('---- Your branch is up to date----\n')
 
+
 def get_local_path():
     return os.getcwd()
+
 
 def provide_determinism(seed=42):
     random.seed(seed)
@@ -66,15 +68,17 @@ def worker_seed_set(worker_id):
     np.random.seed(ss.generate_state(4))
 
     # random
-    worker_seed = torch.initial_seed() % 2**32
+    worker_seed = torch.initial_seed() % 2 ** 32
     random.seed(worker_seed)
 
 
 def to_cpu(tensor):
     return tensor.detach().cpu()
 
+
 def tensor_to_np_array(tensor):
     return tensor.detach().cpu().numpy()
+
 
 def load_classes(path):
     """
@@ -249,7 +253,8 @@ def get_batch_statistics(outputs, targets, iou_threshold):
                     continue
 
                 # Filter target_boxes by pred_label so that we only match against boxes of our own label
-                filtered_target_position, filtered_targets = zip(*filter(lambda x: target_labels[x[0]] == pred_label, enumerate(target_boxes)))
+                filtered_target_position, filtered_targets = zip(
+                    *filter(lambda x: target_labels[x[0]] == pred_label, enumerate(target_boxes)))
 
                 # Find the best matching target for our predicted box
                 iou, box_filtered_index = bbox_iou(pred_box.unsqueeze(0), torch.stack(filtered_targets)).max(0)
@@ -428,8 +433,11 @@ def print_environment_info(ver, filename):
 
     # Print commit hash if possible
     try:
-        print(f"Current Commit Hash: {subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD'], stderr=subprocess.DEVNULL).decode('ascii').strip()}")
-        log_file_writer(f"Current Commit Hash: {subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD'], stderr=subprocess.DEVNULL).decode('ascii').strip()}", filename)
+        print(
+            f"Current Commit Hash: {subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD'], stderr=subprocess.DEVNULL).decode('ascii').strip()}")
+        log_file_writer(
+            f"Current Commit Hash: {subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD'], stderr=subprocess.DEVNULL).decode('ascii').strip()}",
+            filename)
 
     except (subprocess.CalledProcessError, FileNotFoundError):
         print("No git or repo found")
@@ -440,6 +448,7 @@ def one_cycle(y1=0.0, y2=1.0, steps=100):
     # lambda function for sinusoidal ramp from y1 to y2 https://arxiv.org/pdf/1812.01187.pdf
     return lambda x: ((1 - math.cos(x * math.pi / steps)) / 2) * (y2 - y1) + y1
 
+
 def check_amp(model):
     # Check PyTorch Automatic Mixed Precision (AMP) functionality. Return True on correct operation
 
@@ -449,9 +458,11 @@ def check_amp(model):
     else:
         return True
 
+
 def make_divisible(x, divisor):
     # Returns x evenly divisible by divisor
     return math.ceil(x / divisor) * divisor
+
 
 def check_img_size(img_size, s=32):
     # Verify img_size is a multiple of stride s
@@ -460,6 +471,7 @@ def check_img_size(img_size, s=32):
         print('WARNING: --img-size %g must be multiple of max stride %g, updating to %g' % (img_size, s, new_size))
     return new_size
 
+
 def labels_to_image_weights(labels, nc=80, class_weights=np.ones(80)):
     # Produces image weights based on class mAPs
     n = len(labels)
@@ -467,6 +479,7 @@ def labels_to_image_weights(labels, nc=80, class_weights=np.ones(80)):
     image_weights = (class_weights.reshape(1, nc) * class_counts).sum(1)
     # index = random.choices(range(n), weights=image_weights, k=1)  # weight image sample
     return image_weights
+
 
 def labels_to_class_weights(labels, nc=80):
     # Get class weights (inverse frequency) from training labels
@@ -497,56 +510,69 @@ def get_class_distribution_loaders(dataloader_obj, dataset_obj):
 
     return count_dict
 
+
 def idx2class(class2idx):
     return {v: k for k, v in class2idx.items()}
 
 
-
 def get_class_distribution(dataset_obj, class_names, type):
-    if type == 'orig':
+    if type == 'orig' or type == 'evaluate':
         count_dict = {}
         for x in class_names:
             count_dict[x] = 0
-
-        #count_dict = {k: 0 for k, v in dataset_obj.class_to_idx.items()}
         for element in dataset_obj.labels:
-            if len(element) != 0: # fix for IndexError: index 0 is out of bounds for axis 0 with size 0
-                y_lbl = int(element[0][0])
-                label = class_names[y_lbl]
-                #y_lbl = idx2class[y_lbl]
-                count_dict[label] += 1
-
-
-        return count_dict
-    else:
-        count_dict = {}
-        for x in class_names:
-            count_dict[x] = 0
-        for element in dataset_obj.dataset.labels:
-            if len(element) != 0: # fix for IndexError: index 0 is out of bounds for axis 0 with size 0
+            if len(element) != 0:  # fix for IndexError: index 0 is out of bounds for axis 0 with size 0
                 y_lbl = int(element[0][0])
                 label = class_names[y_lbl]
                 # y_lbl = idx2class[y_lbl]
                 count_dict[label] += 1
         return count_dict
-def get_class_weights(dataset, class_names, type,log_path):
+
+    else:
+        count_dict = {}
+        for x in class_names:
+            count_dict[x] = 0
+        for element in dataset_obj.dataset.labels:
+            if len(element) != 0:  # fix for IndexError: index 0 is out of bounds for axis 0 with size 0
+                y_lbl = int(element[0][0])
+                label = class_names[y_lbl]
+                # y_lbl = idx2class[y_lbl]
+                count_dict[label] += 1
+        return count_dict
+
+
+def get_class_weights(dataset, class_names, type, log_path):
     if type == 'orig':
         class_count = [i for i in get_class_distribution(dataset, class_names, type).values()]
-        #check fot inf values
+        # check fot inf values
         indx = 0
         for i in class_count:
             if i == 0:
                 class_count[indx] = 0.1
             indx += 1
-        #save_path = log_path
-        #img_writer_class_dist(class_count, class_names,"Class Distribution Orig", save_path)
-        #class_weights = 1. / torch.tensor(class_count, dtype=torch.float)
-        class_weights = [1/i for i in class_count]
+        # save_path = log_path
+        # img_writer_class_dist(class_count, class_names,"Class Distribution Orig", save_path)
+        # class_weights = 1. / torch.tensor(class_count, dtype=torch.float)
+        class_weights = [1 / i for i in class_count]
         return class_weights, class_count
     else:
         class_count = [i for i in get_class_distribution(dataset, class_names, type).values()]
-        #save_path = log_path
-        #img_writer_class_dist(class_count, class_names, "Class Distribution Weighted", save_path)
-        #class_weights = 1. / torch.tensor(class_count, dtype=torch.float)
-        class_weights = [1/i for i in class_count]
+        # save_path = log_path
+        # img_writer_class_dist(class_count, class_names, "Class Distribution Weighted", save_path)
+        # class_weights = 1. / torch.tensor(class_count, dtype=torch.float)
+        class_weights = [1 / i for i in class_count]
         return class_weights, class_count
+
+
+def check_file_exists(file_path):
+    """
+  Checks if a file exists at the specified path.
+
+  Args:
+    file_path: The path to the file.
+
+  Returns:
+    True if the file exists, False otherwise.
+  """
+
+    return os.path.isfile(file_path)
