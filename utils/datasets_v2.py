@@ -105,7 +105,7 @@ def create_dataloader(path, imgsz, batch_size, stride, opt, class_names, img_log
         #class_weights_all = get_class_weights(dataset, class_names, "orig",img_log_path)
         sampler = RandomSampler(
             data_source=dataset,
-            num_samples=batch_size,
+            num_samples=batch_size*4,
         )
         set_suffle = False
 
@@ -121,7 +121,7 @@ def create_dataloader(path, imgsz, batch_size, stride, opt, class_names, img_log
         # https://towardsdatascience.com / demystifying - pytorchs - weightedrandomsampler - by - example - a68aceccb452
         #class_weights_all = get_class_weights(dataset, class_names, "orig", img_log_path)
         sampler = WeightedRandomSampler(
-            num_samples=batch_size*2,
+            num_samples=batch_size*4,
             # Adjusting this parameter to double the size of our original dataset,
             # we can see that more of our images are seen over the course of an epoch.
             weights=class_weights_orig,

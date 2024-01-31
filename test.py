@@ -249,9 +249,9 @@ def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw, auc_roc
             print(f"- ⏳ - Plotting AUC ROC Curve ----")
             aucroc.plot_auroc_curve(fpr_, tpr_, auc_scores, img_log_path, names, epoch, logger)
             print(f"- ✅ - Plotting AUC ROC Curve - DONE ----")
-            print(f"- ⏳ - Plotting AUC ROC Polar Chart ----")
-            aucroc.plot_polar_chart(auc_scores, img_log_path, names)
-            print(f"- ✅ - Plotting AUC ROC Curve - DONE ----")
+            #print(f"- ⏳ - Plotting AUC ROC Polar Chart ----")
+            #aucroc.plot_polar_chart(auc_scores, img_log_path, names)
+            #print(f"- ✅ - Plotting AUC ROC Curve - DONE ----")
 
         else:
             print(f"- ❎ - No detections in validation set -> skipping AUC ROC and polar plotting ----")
