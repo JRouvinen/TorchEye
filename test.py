@@ -18,6 +18,7 @@ from torch.autograd import Variable
 from torch.utils.data import DataLoader, SequentialSampler, RandomSampler, SubsetRandomSampler, WeightedRandomSampler, \
     BatchSampler
 
+from detect import _draw_and_save_output_image
 from models import *
 from utils import plots
 from utils.auc_roc import AUROC
@@ -28,7 +29,7 @@ from utils.plots import plot_images
 from utils.torch_utils import time_synchronized
 from utils.transforms import DEFAULT_TRANSFORMS
 from utils.utils import load_classes, ap_per_class, get_batch_statistics, non_max_suppression, xywh2xyxy, \
-    print_environment_info, get_class_weights
+    print_environment_info, get_class_weights, get_all_files
 from utils.writer import csv_writer, img_writer_eval_stats
 
 
@@ -166,8 +167,8 @@ def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw, auc_roc
             eval_plot_outputs = None
             eval_plot_targets = None
         else:
-            eval_plot_outputs = torch.tensor(data='')
-            eval_plot_targets = torch.tensor(data='')
+            eval_plot_outputs = None
+            eval_plot_targets = None
     t0 = 0
     t1 = 0
     for _, imgs, targets in tqdm.tqdm(dataloader, desc="Validating", colour='green'):
@@ -197,11 +198,7 @@ def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw, auc_roc
 
             )
 
-        # Plot
 
-        #if draw:
-        #    f = f'{img_log_path}/images/epoch_batch_{epoch}.jpg'  # filename
-        #    plot_images(images=imgs, targets=eval_plot_outputs, paths=img_log_path, fname=f)
         sample_metrics.extend(get_batch_statistics(outputs, targets, iou_threshold=iou_thres))
 
 
@@ -264,10 +261,16 @@ def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw, auc_roc
     true_positives, pred_scores, pred_labels = [
         np.concatenate(x, 0) for x in list(zip(*sample_metrics))]
     metrics_output = ap_per_class(true_positives, pred_scores, pred_labels, labels)
+    if metrics_output is not None:
+        # Plot
+        if draw:
+            for (_, detections) in zip(_, outputs):
+                _draw_and_save_output_image(
+                    _, detections, model.hyperparams['height'], img_log_path, class_names, epoch, draw)
     print_eval_stats(metrics_output, class_names, verbose)
     # Print speeds
     t = tuple(x / len(dataloader.dataset.img_files) * 1E3 for x in (t0, t1, t0 + t1)) + (img_size, img_size, dataloader.batch_size)  # tuple
-    print('Speed: %.1f/%.1f/%.1f ms inference/NMS/total per %gx%g image at batch-size %g' % t)
+    print('---- Speed: %.1f/%.1f/%.1f ms inference/NMS/total per %gx%g image at batch-size %g ----' % t)
     return metrics_output, outputs, targets
 
 
@@ -369,6 +372,10 @@ def _create_validation_data_loader_v1(img_path, batch_size, img_size, n_cpu):
     :return: Returns DataLoader
     :rtype: DataLoader
     """
+    if img_path.endswith('.txt'):
+        img_path = img_path
+    else:
+        img_path = get_all_files(img_path)
     dataset = ListDataset(img_path, img_size=img_size, multiscale=False, transform=DEFAULT_TRANSFORMS)
     dataloader = DataLoader(
         dataset,

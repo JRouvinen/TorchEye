@@ -5,6 +5,8 @@
 # Updated: 2024-01-12
 # Version V2
 ##################################
+import yaml
+
 
 def parse_model_config_and_hyperparams(path,hyp):
     """Parses the yolo-v3 layer configuration file and returns module definitions"""
@@ -64,15 +66,26 @@ def parse_data_config(path):
     """Parses the data configuration file"""
     options = dict()
     options['gpus'] = '0,1,2,3'
-    options['num_workers'] = '10'
-    with open(path, 'r') as fp:
-        lines = fp.readlines()
-    for line in lines:
-        line = line.strip()
-        if line == '' or line.startswith('#'):
-            continue
-        key, value = line.split('=')
-        options[key.strip()] = value.strip()
+    options['num_workers'] = '4'
+    if path.endswith('.yaml'):
+        with open(path, 'r') as file:
+            data_config = yaml.safe_load(file)
+        options['train'] = data_config['train']
+        options['valid'] = data_config['valid']
+        options['eval'] = data_config['eval']
+        options['nc'] = data_config['nc']
+        options['names'] = data_config['names']
+        options['model'] = data_config['model']
+
+    else:
+        with open(path, 'r') as fp:
+            lines = fp.readlines()
+        for line in lines:
+            line = line.strip()
+            if line == '' or line.startswith('#'):
+                continue
+            key, value = line.split('=')
+            options[key.strip()] = value.strip()
     return options
 
 def parse_model_weight_config(path):

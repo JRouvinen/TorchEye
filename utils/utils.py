@@ -3,7 +3,7 @@
 # Author: Juha-Matti Rouvinen
 # Date: 2023-11-10
 # Updated: 2024-01-16
-# Version V6
+# Version V7
 ##################################
 
 from __future__ import division
@@ -14,6 +14,7 @@ import time
 import platform
 from copy import deepcopy
 
+import pandas as pd
 import tqdm
 import torch
 import torch.nn as nn
@@ -24,7 +25,9 @@ import random
 import imgaug as ia
 import platform
 
-from utils.loss import compute_loss
+import yaml
+
+from utils.loss import compute_loss, fitness
 from utils.writer import log_file_writer, img_writer_class_dist
 
 
@@ -559,8 +562,8 @@ def get_class_weights(dataset, class_names, type, log_path):
         class_count = [i for i in get_class_distribution(dataset, class_names, type).values()]
         # save_path = log_path
         # img_writer_class_dist(class_count, class_names, "Class Distribution Weighted", save_path)
-        # class_weights = 1. / torch.tensor(class_count, dtype=torch.float)
-        class_weights = [1 / i for i in class_count]
+        class_weights = 1. / torch.tensor(class_count, dtype=torch.float)
+        #class_weights = [1 / i for i in class_count]
         return class_weights, class_count
 
 
@@ -576,3 +579,85 @@ def check_file_exists(file_path):
   """
 
     return os.path.isfile(file_path)
+
+def get_all_files(folder_path):
+  """Returns a list of all files in the specified folder path."""
+
+  # Get the list of all files in the specified folder path.
+  files = os.listdir(folder_path)
+
+  # Create a list of full file paths.
+  full_file_paths = [os.path.join(folder_path, file) for file in files]
+
+  # Return the list of files.
+  return full_file_paths
+
+def colorstr(*input):
+    # Colors a string https://en.wikipedia.org/wiki/ANSI_escape_code, i.e.  colorstr('blue', 'hello world')
+    *args, string = input if len(input) > 1 else ("blue", "bold", input[0])  # color arguments, string
+    colors = {
+        "black": "\033[30m",  # basic colors
+        "red": "\033[31m",
+        "green": "\033[32m",
+        "yellow": "\033[33m",
+        "blue": "\033[34m",
+        "magenta": "\033[35m",
+        "cyan": "\033[36m",
+        "white": "\033[37m",
+        "bright_black": "\033[90m",  # bright colors
+        "bright_red": "\033[91m",
+        "bright_green": "\033[92m",
+        "bright_yellow": "\033[93m",
+        "bright_blue": "\033[94m",
+        "bright_magenta": "\033[95m",
+        "bright_cyan": "\033[96m",
+        "bright_white": "\033[97m",
+        "end": "\033[0m",  # misc
+        "bold": "\033[1m",
+        "underline": "\033[4m",
+    }
+    return "".join(colors[x] for x in args) + f"{string}" + colors["end"]
+
+def print_mutation(keys, results, hyp, save_dir, prefix=colorstr("evolve: ")):
+    evolve_csv = save_dir / "evolve.csv"
+    evolve_yaml = save_dir / "hyp_evolve.yaml"
+    keys = tuple(keys) + tuple(hyp.keys())  # [results + hyps]
+    keys = tuple(x.strip() for x in keys)
+    vals = results + tuple(hyp.values())
+    n = len(keys)
+
+    # Log to evolve.csv
+    s = "" if evolve_csv.exists() else (("%20s," * n % keys).rstrip(",") + "\n")  # add header
+    with open(evolve_csv, "a") as f:
+        f.write(s + ("%20.5g," * n % vals).rstrip(",") + "\n")
+
+    # Save yaml
+    with open(evolve_yaml, "w") as f:
+        data = pd.read_csv(evolve_csv, skipinitialspace=True)
+        data = data.rename(columns=lambda x: x.strip())  # strip keys
+        i = np.argmax(fitness(data.values[:, :4]))  #
+        generations = len(data)
+        f.write(
+            "# YOLOv3 Hyperparameter Evolution Results\n"
+            + f"# Best generation: {i}\n"
+            + f"# Last generation: {generations - 1}\n"
+            + "# "
+            + ", ".join(f"{x.strip():>20s}" for x in keys[:7])
+            + "\n"
+            + "# "
+            + ", ".join(f"{x:>20.5g}" for x in data.values[i, :7])
+            + "\n\n"
+        )
+        yaml.safe_dump(data.loc[i][7:].to_dict(), f, sort_keys=False)
+
+    # Print to screen
+    print(
+        prefix
+        + f"{generations} generations finished, current result:\n"
+        + prefix
+        + ", ".join(f"{x.strip():>20s}" for x in keys)
+        + "\n"
+        + prefix
+        + ", ".join(f"{x:20.5g}" for x in vals)
+        + "\n\n"
+    )

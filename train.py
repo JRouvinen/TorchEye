@@ -72,8 +72,13 @@ from torchsummary import summary
 from tensorboard import program
 from terminaltables import AsciiTable
 from torch.cuda import amp
+
+from detect import _draw_and_save_output_image
 from utils import threaded
 from utils.confusion_matrix import ConfusionMatrix
+from utils.folder_management import create_exp_folder_structure
+from utils.optimizer_scheduler_selector import get_scheduler, get_optimizer
+from utils.plots import plot_images
 from utils.torch_utils import ModelEMA
 from torch.optim.lr_scheduler import ConstantLR, ExponentialLR
 from torch.utils.data import DataLoader
@@ -133,38 +138,7 @@ def _create_data_loader(img_path, batch_size, img_size, n_cpu, multiscale_traini
         worker_init_fn=worker_seed_set)
     return dataloader
 
-
-# Python code to find and delete the oldest .pth file in the 'checkpoints/' directory
-def find_and_del_last_ckpt():
-    # Check if the file is a .pth file
-    is_pth_file = False
-
-    # Get the list of files in the 'checkpoints/' directory
-    list_of_files = os.listdir('checkpoints/')
-
-    # Get the full path of each file
-    full_path = ["checkpoints/{0}".format(x) for x in list_of_files]
-
-    # Find the oldest file based on creation time
-    oldest_file = min(full_path, key=os.path.getctime)
-
-    # Loop until a .pth file is found
-    while not is_pth_file:
-        if oldest_file.endswith('.pth'):
-            is_pth_file = True
-        else:
-            # Remove the oldest file from the list
-            full_path.remove(oldest_file)
-
-            # Find the new oldest file
-            oldest_file = min(full_path, key=os.path.getctime)
-
-    # Delete the oldest .pth file
-    os.remove(oldest_file)
-
-
 # Python code to check and create necessary folders for logging, checkpoints, and output.
-
 def check_folders():
     local_path = os.getcwd()
     # Check if logs folder exists
@@ -175,19 +149,14 @@ def check_folders():
     logs_path_there = os.path.exists(local_path + "/logs/profiles/")
     if not logs_path_there:
         os.mkdir(local_path + "/logs/profiles/")
-    # Check if checkpoints folder exists
-    # ckpt_path_there = os.path.exists(local_path + "/checkpoints/")
-    # if not ckpt_path_there:
-    #    os.mkdir(local_path + "/checkpoints/")
-    # Check if checkpoints/best folder exists
-    # ckpt_best_path_there = os.path.exists(local_path + "/checkpoints/best/")
-    # if not ckpt_best_path_there:
-    #    os.mkdir(local_path + "/checkpoints/best/")
-    # Check if output folder exists
+
     output_path_there = os.path.exists(local_path + "/output/")
     if not output_path_there:
         os.mkdir(local_path + "/output/")
 
+    output_path_there = os.path.exists(local_path + "/error_logs/")
+    if not output_path_there:
+        os.mkdir(local_path + "/error_logs/")
 
 @threaded()
 def run_tensorboard(tracking_address):
@@ -205,7 +174,7 @@ def run_tensorboard(tracking_address):
     print(f"-🎦- Tensorflow monitoring active on {url} ----")
 
 
-def run(args, data_config, hyp_config, ver, clearml=None):
+def run(args, data_config, hyp_config, ver, clearml=None, evolve=False):
     '''
     211-339
     The code creates a model log folder and writes log files for a deep learning model.
@@ -228,49 +197,41 @@ def run(args, data_config, hyp_config, ver, clearml=None):
 
         train_path = data_config["train"]
         valid_path = data_config["valid"]
-        class_names = load_classes(data_config["names"])
-        num_classes = len(class_names)
+        eval_path = data_config["eval"]
+        if str(args.data).endswith('.yaml'):
+            class_names = data_config['names']
+            num_classes = data_config['nc']
+        else:
+            class_names = load_classes(data_config["names"])
+            num_classes = len(class_names)
 
         if args.name != None:
             model_name = args.name
         else:
-            model_name = data_config["model_name"]
-            if model_name == '':
-                model_name = str(date)
+            if str(args.data).endswith('.yaml'):
+                model_name = data_config['model']['name']+ '_' + str(date)
             else:
-                model_name = model_name + '_' + str(date)
-        local_path = os.getcwd()
-        model_logs_path = os.path.join(local_path, args.logdir, model_name)
-        # Create model named log folder in logs folder
+                model_name = data_config["model_name"]
+                if model_name == '':
+                    model_name = str(date)
+                else:
+                    model_name = model_name + '_' + str(date)
+        logs, imgs_logs, ckpt_logs, img_epoch_logs = create_exp_folder_structure(args.logdir, model_name)
 
-        # Check if logs folder exists
-        logs_path_there = os.path.exists(model_logs_path)
-        if not logs_path_there:
-            os.mkdir(model_logs_path + '/')
-        model_imgs_logs_path = '/images/'
-        logs_img_path_there = os.path.exists(model_logs_path + model_imgs_logs_path)
-        if not logs_img_path_there:
-            os.mkdir(model_logs_path + model_imgs_logs_path)
-            model_imgs_logs_path = model_logs_path + model_imgs_logs_path
-        model_ckpt_path = '/checkpoints/'
-        model_ckpt_path_there = os.path.exists(model_logs_path + model_ckpt_path)
-        if not model_ckpt_path_there:
-            os.mkdir(model_logs_path + model_ckpt_path)
-            model_ckpt_logs_path = model_logs_path + model_ckpt_path
         # Create and write model log files
-        model_logfile_path = model_logs_path + '/' + model_name + "_logfile" + ".txt"
+        model_logfile = logs + '/' + model_name + "_logfile" + ".txt"
         # Create new log file
-        f = open(model_logfile_path, "w")
+        f = open(model_logfile, "w")
         f.close()
-        log_file_writer("Software version: " + ver, model_logfile_path)
-        log_file_writer(f"Command line arguments: {args}", model_logfile_path)
+        log_file_writer("Software version: " + ver, model_logfile)
+        log_file_writer(f"Command line arguments: {args}", model_logfile)
         if args.verbose:
             print(f'Class names: {class_names}')
-            log_file_writer(f"Class names: {class_names}", model_logfile_path)
-        print_environment_info(ver, model_logfile_path)
+            log_file_writer(f"Class names: {class_names}", model_logfile)
+        print_environment_info(ver, model_logfile)
         if args.tensorboard:
-            logger = Logger(model_logs_path)  # Tensorboard logger
-            run_tensorboard(model_logs_path)
+            logger = Logger(logs)  # Tensorboard logger
+            run_tensorboard(logs)
         else:
             logger = None
         gpu = args.gpu
@@ -335,11 +296,11 @@ def run(args, data_config, hyp_config, ver, clearml=None):
         # header = ['Iterations', 'Iou Loss', 'Object Loss', 'Class Loss', 'Loss', 'Learning Rate']
         header = ['Iterations', 'Iou Loss', 'Object Loss', 'Class Loss', 'Loss', 'Mean loss',
                   'Learning Rate']
-        csv_writer(header, model_logs_path + "/" + model_name + "_training_plots.csv", 'a')
+        csv_writer(header, logs + "/" + model_name + "_training_plots.csv", 'a')
 
         # Create evaluation csv file
         header = ['Epoch', 'Epochs', 'Precision', 'Recall', 'mAP', 'F1', 'Fitness']
-        csv_writer(header, model_logs_path + "/" + model_name + "_evaluation_plots.csv", 'a')
+        csv_writer(header, logs + "/" + model_name + "_evaluation_plots.csv", 'a')
 
         # Create validation csv file
         # header = ['Index', 'Class', 'AP']
@@ -399,7 +360,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                 device = torch.device("cpu")
                 cuda_available = False
         print(f'---- Using cuda device - {device} ----')
-        log_file_writer(f'Using cuda device - {device}', model_logfile_path)
+        log_file_writer(f'Using cuda device - {device}', model_logfile)
 
         # ############
         # Create model - Updated on V0.4.0
@@ -416,7 +377,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
         # ############
         if clearml_run:
             task.connect_configuration(model.hyperparams)
-        log_file_writer(f"Model hyperparameters: {model.hyperparams}", model_logfile_path)
+        log_file_writer(f"Model hyperparameters: {model.hyperparams}", model_logfile)
 
         # Print model
         if args.verbose:
@@ -470,57 +431,12 @@ def run(args, data_config, hyp_config, ver, clearml=None):
         else:
             req_optimizer = hyp_config['optimizer']
         params = [p for p in model.parameters() if p.requires_grad]
-        implemented_optimizers = ["adamw", 'sgd', "rmsprop", "adadelta", "adamax", "adam"]
-        if req_optimizer in implemented_optimizers:
-            if req_optimizer == "adamw":
-                optimizer = optim.AdamW(
-                    params,
-                    lr=float(hyp_config['lr0']),
-                    betas=(float(hyp_config['momentum']), 0.999),
-                    amsgrad=True
-                )
-            elif req_optimizer == "sgd":
-                optimizer = optim.SGD(
-                    pg0,
-                    lr=float(hyp_config['lr0']),
-                    momentum=float(hyp_config['momentum']),
-                    nesterov=True,
-                )
-            elif req_optimizer == "rmsprop":
-                optimizer = optim.RMSprop(
-                    pg0,
-                    lr=float(hyp_config['lr0']),
-                    momentum=float(hyp_config['momentum'])
-                )
 
-            elif req_optimizer == "adam":
-                optimizer = optim.Adam(
-                    pg0,
-                    lr=float(hyp_config['lr0']),
-                    betas=(float(hyp_config['momentum']), 0.999),
-                )
-            elif req_optimizer == "adadelta":
-                optimizer = optim.Adadelta(
-                    pg0,
-                    lr=float(hyp_config['lr0']),
-                )
-            elif req_optimizer == "adamax":
-                optimizer = optim.Adamax(
-                    pg0,
-                    lr=float(hyp_config['lr0']),
-                    betas=(float(hyp_config['momentum']), 0.999),
-                )
+        optimizer, model = get_optimizer(req_optimizer,
+                                         params, pg0, pg1, pg2,
+                                         hyp_config['lr0'],hyp_config['momentum'],
+                                         model, model_logfile)
 
-        else:
-            print("- ⚠ - Unknown optimizer. Reverting into SGD optimizer.")
-            log_file_writer(f"- ⚠ - Unknown optimizer. Reverting into SGD optimizer.", model_logfile_path)
-            optimizer = optim.SGD(
-                pg0,
-                lr=float(hyp_config['lr0']),
-                momentum=float(hyp_config['momentum']),
-                nesterov=True,
-            )
-            model.hyperparams['optimizer'] = 'sgd'
         if req_optimizer == 'sgd':
             optimizer.add_param_group(
                 {'params': pg1, 'weight_decay': hyp_config['weight_decay']})  # add pg1 with weight_decay
@@ -565,7 +481,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
         imgsize, test_images = [check_img_size(x, gs) for x in image_dims]  # verify imgsz are gs-multiples
         # Trainloader
         dataloader, dataset = create_dataloader(train_path, imgsize, batch_size, gs, args, class_names,
-                                                model_imgs_logs_path,
+                                                imgs_logs,
                                                 hyp=hyp_config, augment=True, cache=False, rect=False,
                                                 rank=-1, world_size=1, workers=int(args.n_cpu))
 
@@ -589,14 +505,14 @@ def run(args, data_config, hyp_config, ver, clearml=None):
         num_batches = len(dataloader)  # number of batches
         warmup_num = max(
             round(warmup_epochs * num_batches), 100)  # number of warmup iterations, max(5 epochs, 100 iterations)
-        if warmup_num > num_batches * args.epochs:
+        if warmup_num >= num_batches * args.epochs:
             warmup_num = float(num_batches * args.epochs / 2)  # limit warmup to < 1/2 of training
         print(f'- 🔥 - Number of calculated warmup iterations: {warmup_num} ----')
         max_batches = len(class_names) * int(model.hyperparams['max_batches_factor'])
         num_steps = num_batches * args.epochs
 
         print(f"- ⚠ - Maximum number of iterations - {max_batches}")
-        log_file_writer(f"Maximum batch size: {max_batches}", model_logfile_path)
+        log_file_writer(f"Maximum batch size: {max_batches}", model_logfile)
         # #################
         # Use autoanchor -> Not implemented yet
         # #################
@@ -618,88 +534,11 @@ def run(args, data_config, hyp_config, ver, clearml=None):
             req_scheduler = args.scheduler
         else:
             req_scheduler = hyp_config['lr_scheduler']
-        implemented_schedulers = ['CosineAnnealingLR', 'ChainedScheduler',
-                                  'ExponentialLR', 'ReduceLROnPlateau', 'ConstantLR',
-                                  'CyclicLR', 'OneCycleLR', 'LambdaLR', 'MultiplicativeLR',
-                                  'StepLR', 'MultiStepLR', 'LinearLR', 'PolynomialLR', 'CosineAnnealingWarmRestarts']
-        if req_scheduler in implemented_schedulers:
-            lf = lambda x: ((1 + math.cos(x * math.pi / args.epochs)) / 2) * (1 - float(hyp_config['lrf'])) + float(
-                hyp_config['lrf'])  # cosine
+        scheduler = get_scheduler(req_scheduler,optimizer,args.epochs,num_steps, args.evaluation_interval,dataloader,hyp_config['lr0'], hyp_config['lrf'],hyp_config['dec_gamma'],args.verbose)
 
-            # CosineAnnealingLR
-            if req_scheduler == 'CosineAnnealingLR':
-                scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-                    optimizer,
-                    T_max=int(num_steps / 10),
-                    eta_min=float(hyp_config['lr0']) / 10000,
-                    verbose=False)
-            # ChainedScheduler
-            elif req_scheduler == 'ChainedScheduler':
-                scheduler1 = ConstantLR(optimizer, factor=0.5, total_iters=5,
-                                        verbose=False)
-                scheduler2 = ExponentialLR(optimizer, gamma=float(hyp_config['dec_gamma']), verbose=False)
-                scheduler = torch.optim.lr_scheduler.ChainedScheduler([scheduler1, scheduler2])
-            elif req_scheduler == 'ExponentialLR':
-                scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=float(hyp_config['dec_gamma']),
-                                                                   verbose=False)
-            elif req_scheduler == 'ReduceLROnPlateau':
-                minimum_lr = float(hyp_config['lr0']) * float(hyp_config['lrf'])
-                scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-                    optimizer,
-                    'min',
-                    patience=int(args.evaluation_interval) * 10,
-                    min_lr=minimum_lr,
-                    cooldown=int(args.evaluation_interval),
-                    verbose=False)
-            elif req_scheduler == 'ConstantLR':
-                scheduler = torch.optim.lr_scheduler.ConstantLR(optimizer, factor=0.5,
-                                                                total_iters=int(args.evaluation_interval),
-                                                                verbose=False)
-            elif req_scheduler == 'CyclicLR':
-                scheduler = torch.optim.lr_scheduler.CyclicLR(optimizer,
-                                                              base_lr=float(hyp_config['lr0']) * float(
-                                                                  hyp_config['lrf']),
-                                                              max_lr=float(hyp_config['lr0']), cycle_momentum=True,
-                                                              verbose=False,
-                                                              mode='exp_range')  # mode (str): One of {triangular, triangular2, exp_range}.
-            elif req_scheduler == 'OneCycleLR':
-                scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=float(hyp_config['lrf']),
-                                                                steps_per_epoch=len(dataloader),
-                                                                epochs=int(args.epochs))
-            elif req_scheduler == 'LambdaLR':
-                scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer,
-                                                              lr_lambda=lf,
-                                                              verbose=False)  # plot_lr_scheduler(optimizer, scheduler, epochs)
-            elif req_scheduler == 'MultiplicativeLR':
-                lf = one_cycle(1, float(hyp_config['lr0']), args.epochs)  # cosine 1->hyp['lrf']
-                scheduler = torch.optim.lr_scheduler.MultiplicativeLR(optimizer, lr_lambda=lf)
-            elif req_scheduler == 'StepLR':
-                scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=int(args.evaluation_interval),
-                                                            gamma=0.1)  # Step size -> epochs
-            elif req_scheduler == 'MultiStepLR':
-                scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[30, 80],
-                                                                 gamma=0.1)  # milestones size -> epochs
-            elif req_scheduler == 'LinearLR':
-                scheduler = torch.optim.lr_scheduler.LinearLR(optimizer, start_factor=0.5, total_iters=int(
-                    args.epochs) / 2)  # total_iters size -> epochs
-            elif req_scheduler == 'PolynomialLR':
-                scheduler = torch.optim.lr_scheduler.PolynomialLR(optimizer, total_iters=int(args.epochs),
-                                                                  power=1.0)  # total_iters size -> epochs
-            elif req_scheduler == 'CosineAnnealingWarmRestarts':
-                scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=int(num_steps / 10),
-                                                                                 eta_min=float(
-                                                                                     hyp_config['lr0']) * float(
-                                                                                     hyp_config[
-                                                                                         'lrf']))  # total_iters size -> epochs
-        else:
-            print("- ⚠ - Unknown scheduler! Reverting to LambdaLR")
-            req_scheduler = 'LambdaLR'
-            lf = lambda x: (1 - x / args.epochs) * (1.0 - float(hyp_config['lrf'])) + float(hyp_config['lrf'])
-            scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer,
-                                                          lr_lambda=lf, verbose=False)
         print(
             f"- ⚠ - Using {req_optimizer} - optimizer with {req_scheduler} - LR scheduler")
-        log_file_writer(f"Using {req_optimizer} - optimizer with {req_scheduler} - LR scheduler", model_logfile_path)
+        log_file_writer(f"Using {req_optimizer} - optimizer with {req_scheduler} - LR scheduler", model_logfile)
 
         scheduler.last_epoch = start_epoch - 1  # do not move
 
@@ -727,7 +566,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
         # #################
         if args.sync_bn != -1 and torch.cuda.is_available() is True:
             model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model).to(device)
-            log_file_writer(f'Using SyncBatchNorm()', model_logfile_path)
+            log_file_writer(f'Using SyncBatchNorm()', model_logfile)
 
         # Model parameters
         hyp_config['cls'] = float(
@@ -750,7 +589,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
 
         print(f"\n- 🔛 - Starting Model {model_name} training... ----")
 
-        torch.save(model, f'{model_ckpt_logs_path}/{model_name}_init.pt')
+        torch.save(model, f'{ckpt_logs}/{model_name}_init.pt')
         # Modded on V0.4
 
         for epoch in range(1, args.epochs + 1):
@@ -811,10 +650,10 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                     if not lr_restart:
                         lr_restart = True
                         # Get learning rate
-                        lr = float(hyp_config['lr0'])
+                        #lr = float(hyp_config['lr0'])
                         # Set learning rate
-                        for g in optimizer.param_groups:
-                            g['lr'] = lr
+                        #for g in optimizer.param_groups:
+                        #    g['lr'] = lr
                 # Multi-scale not implemented -> snippet below is just an test example
                 '''
                 # Multi-scale
@@ -936,14 +775,14 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                             (lr_float)  # Learning rate
                             ]
                     # header = ['Iterations', 'Iou Loss', 'Object Loss', 'Class Loss', 'Loss', 'Batch loss','Mean loss','Learning Rate']
-                    csv_writer(data, model_logs_path + "/" + model_name + "_training_plots.csv", 'a')
+                    csv_writer(data, logs + "/" + model_name + "_training_plots.csv", 'a')
 
                     # ############
                     # ClearML csv reporter logger - V0.3.6
                     # ############
                     if clearml_run:
                         # Report table - CSV from path
-                        csv_url = model_logs_path + "/" + model_name + "_training_plots.csv"
+                        csv_url = logs + "/" + model_name + "_training_plots.csv"
                         task.logger.report_table(
                             "Training plots",
                             "training_plots.csv",
@@ -962,7 +801,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                     img_writer_training(iou_loss_array, obj_loss_array, cls_loss_array, train_loss_array, lr_array,
                                         batch_loss_array,
                                         batches_array,
-                                        model_logs_path + '/' + model_name, logger)
+                                        logs + '/' + model_name, logger)
             # #############
             # Save progress -> changed on version 0.3.11F to save every eval epoch
             # #############
@@ -972,7 +811,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
 
                 # Save last model to checkpoint file
                 # Updated on version 0.3.0 to save only last
-                checkpoint_path = f"{model_ckpt_logs_path}/{model_name}_ckpt_last.pth"
+                checkpoint_path = f"{ckpt_logs}/{model_name}_ckpt_last.pth"
                 print(f"- ⏺ - Saving last checkpoint to: '{checkpoint_path}' ----")
                 torch.save(model.state_dict(), checkpoint_path)
                 checkpoints_saved += 1
@@ -981,7 +820,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                 # ClearML last model update - V 0.3.7 -> changed on version 0.3.11F to save every eval epoch
                 ############################
                 if clearml_run and clearml_save_last:
-                    task.update_output_model(model_path=f"{model_ckpt_logs_path}/{model_name}_ckpt_last.pth")
+                    task.update_output_model(model_path=f"{ckpt_logs}/{model_name}_ckpt_last.pth")
 
             if auto_eval is True and loss_items.dim() > 0 and epoch > args.evaluation_interval:
                 # #############
@@ -1028,7 +867,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                     model,
                     validation_dataloader,
                     class_names,
-                    model_imgs_logs_path,
+                    imgs_logs,
                     epoch,
                     args.draw,
                     args.auc_roc,
@@ -1044,9 +883,15 @@ def run(args, data_config, hyp_config, ver, clearml=None):
 
                 # Plot
                 # if args.evaluation_interval % epoch == 0 and args.verbose:
-                # if args.draw:
-                #    f = f'{model_logs_path}/images/epoch_batch_{epoch}.jpg'  # filename
-                #    plot_images(images=imgs, targets=list(pred), paths=model_logs_path, fname=f)
+                if args.draw:
+                    f = f'{logs}/images/epoch_data/epoch_batch_{epoch}_targets.jpg'  # filename
+                    plot_images(images=imgs, targets=targets, paths=logs, fname=f)
+                    #pred_array = None
+                    #for (image_path, detections) in zip(paths, pred):
+                    #    _draw_and_save_output_image(
+                    #        image_path, detections, model.hyperparams['height'], model_logs_path, class_names, date, args.draw)
+
+
                 #    # if tb_writer:
                 #    #     tb_writer.add_image(f, result, dataformats='HWC', global_step=epoch)
                 #    #     tb_writer.add_graph(model, imgs)  # add model to tensorboard
@@ -1112,17 +957,17 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                     f1_array = np.concatenate((f1_array, np.array([f1.mean()])))
                     img_writer_evaluation(precision_array, recall_array, m_ap_array, f1_array,
                                           curr_fitness_array, train_fitness_array, eval_epoch_array,
-                                          model_logs_path + '/' + model_name, logger)
+                                          logs + '/' + model_name, logger)
 
                     if curr_fitness > best_fitness and epoch:
                         best_fitness = curr_fitness
-                        checkpoint_path = f"{model_ckpt_logs_path}/{model_name}_ckpt_best.pth"
+                        checkpoint_path = f"{ckpt_logs}/{model_name}_ckpt_best.pth"
                         print(f"- ⭐ - Saving best checkpoint to: '{checkpoint_path}'  ----")
                         torch.save(model.state_dict(), checkpoint_path)
                         if args.draw:
                             # Make a copy of best checkpoint confusion matrix
-                            shutil.copyfile(f'{model_imgs_logs_path}/confusion_matrix_last.png',
-                                            f'{model_imgs_logs_path}/confusion_matrix_best.png')
+                            shutil.copyfile(f'{imgs_logs}/confusion_matrix_last.png',
+                                            f'{imgs_logs}/confusion_matrix_best.png')
                             # Report to tensorboard
                             # file_to_save = open_file(f'{model_imgs_logs_path}/confusion_matrix_best.png')
                             # if logger is not None:
@@ -1131,11 +976,11 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                             # logger.add_image(f, result, dataformats='HWC', global_step=epoch)
 
                         if args.auc_roc:
-                            file_exists = check_file_exists(f'{model_imgs_logs_path}/auc_roc_curve_last.png')
+                            file_exists = check_file_exists(f'{imgs_logs}/auc_roc_curve_last.png')
                             if file_exists:
                                 # Make a copy of best checkpoint auc roc curve
-                                shutil.copyfile(f'{model_imgs_logs_path}/auc_roc_curve_last.png',
-                                                f'{model_imgs_logs_path}/auc_roc_curve_best.png')
+                                shutil.copyfile(f'{imgs_logs}/auc_roc_curve_last.png',
+                                                f'{imgs_logs}/auc_roc_curve_best.png')
                             # Report to tensorboard
                             # file_to_save = open_file(f'{model_imgs_logs_path}/auc_roc_curve_best.png')
                             # if logger is not None:
@@ -1145,7 +990,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                         # ClearML model update - V 3.0.0
                         ############################
                         if clearml_run:
-                            task.update_output_model(model_path=f"{model_ckpt_logs_path}/{model_name}_ckpt_best.pth")
+                            task.update_output_model(model_path=f"{ckpt_logs}/{model_name}_ckpt_best.pth")
 
                         ############################
                         # Save best checkpoint evaluation stats into csv - V0.3.8
@@ -1156,7 +1001,7 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                         # print('ap cls',ap_class)
                         # print('AP',AP)
                         # print(class_names)
-                        csv_writer("", f"{model_logs_path}/{model_name}_eval_stats.csv", 'w')
+                        csv_writer("", f"{logs}/{model_name}_eval_stats.csv", 'w')
                         eval_stats_class_array = np.array([])
                         eval_stats_ap_array = np.array([])
 
@@ -1171,22 +1016,22 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                             if logger is not None:
                                 logger.scalar_summary(f"validation/class/{class_names[i]}", round(float(AP[i]), 5),
                                                       epoch)
-                            csv_writer(data, f"{model_logs_path}/{model_name}_eval_stats.csv", 'a')
+                            csv_writer(data, f"{logs}/{model_name}_eval_stats.csv", 'a')
 
                         # Write mAP value as last line
                         data = ["--",  #
                                 'mAP',  #
                                 str(round(AP.mean(), 5)),
                                 ]
-                        csv_writer(data, f"{model_logs_path}/{model_name}_eval_stats.csv", 'a')
+                        csv_writer(data, f"{logs}/{model_name}_eval_stats.csv", 'a')
                         img_writer_eval_stats(eval_stats_class_array, eval_stats_ap_array,
-                                              f"{model_imgs_logs_path}/{model_name}_best")
+                                              f"{imgs_logs}/{model_name}_best")
                         # ############
                         # ClearML csv reporter logger - V0.3.8
                         # ############
                         if clearml_run:
                             # Report table - CSV from path
-                            csv_url = f"{model_logs_path}/{model_name}_eval_stats.csv"
+                            csv_url = f"{logs}/{model_name}_eval_stats.csv"
                             task.logger.report_table(
                                 "Model evaluation stats",
                                 f"{model_name}_eval_stats.csv",
@@ -1206,13 +1051,13 @@ def run(args, data_config, hyp_config, ver, clearml=None):
                             f1.mean(),  # f1
                             curr_fitness  # Fitness
                             ]
-                    csv_writer(data, model_logs_path + "/" + model_name + "_evaluation_plots.csv", 'a')
+                    csv_writer(data, logs + "/" + model_name + "_evaluation_plots.csv", 'a')
                     # ############
                     # ClearML csv reporter logger - V0.3.6
                     # ############
                     if clearml_run:
                         # Report table - CSV from path
-                        csv_url = model_logs_path + "/" + model_name + "_evaluation_plots.csv"
+                        csv_url = logs + "/" + model_name + "_evaluation_plots.csv"
                         task.logger.report_table(
                             "Evaluation plots",
                             "evaluation_plots.csv",
@@ -1233,11 +1078,13 @@ def run(args, data_config, hyp_config, ver, clearml=None):
             elif epoch >= args.epochs:
                 print(f'- ✅ - Finished training for {args.epochs} epochs ----')
                 log_file_writer(f'Finished training for {args.epochs} epochs',
-                                model_logfile_path)
+                                model_logfile)
                 if args.test_cycle is True:
                     return f"Finished training for {args.epochs} epochs, with {req_optimizer} optimizer and {req_scheduler} lr sheduler"
                 else:
                     exit()
+            elif evolve:
+                pass
     except KeyboardInterrupt:
         # Get the current directory
         current_directory = os.getcwd()
@@ -1247,8 +1094,8 @@ def run(args, data_config, hyp_config, ver, clearml=None):
             # Delete the file
             os.remove(file_path)
             print("- ❌ - The old INTERRUPTED.pth has been deleted... -----")
-        torch.save(model.state_dict(), f'{model_ckpt_logs_path}/INTERRUPTED.pth')
-        print(f'- 💾 - Current weights are saved into {model_ckpt_logs_path}/INTERRUPTED.pth ----')
+        torch.save(model.state_dict(), f'{ckpt_logs}/INTERRUPTED.pth')
+        print(f'- 💾 - Current weights are saved into {ckpt_logs}/INTERRUPTED.pth ----')
         try:
             sys.exit(0)
         except SystemExit:
@@ -1256,22 +1103,22 @@ def run(args, data_config, hyp_config, ver, clearml=None):
     except Exception as e:
         print(f'---- ERROR! -> {traceback.format_exc()}')
         # Create new log file
-        f = open("ERROR_log_" + date + ".txt", "w")
+        f = open(f"./error_logs/ERROR_log_" + date + ".txt", "w")
         f.close()
         to_print = f"ERROR log - {date} \n Software version: {ver} \n Args: {args} \n Error message: \n {str(traceback.format_exc())}"
-        log_file_writer(to_print, "ERROR_log_" + date + ".txt")
+        log_file_writer(to_print, "./error_logs/ERROR_log_" + date + ".txt")
 
 
 if __name__ == "__main__":
-    ver = "1.1.4"
+    ver = "1.2.0"
     warnings.filterwarnings('ignore', category=UserWarning, append=True)
     # Check folders
     check_folders()
     parser = argparse.ArgumentParser(description="Trains the YOLOv3/4 model.")
     parser.add_argument("-m", "--model", type=str, default="config/yolov3.cfg",
                         help="Path to model definition file (.cfg)")
-    parser.add_argument("-d", "--data", type=str, default="config/coco.data",
-                        help="Path to data config file (.data)")
+    parser.add_argument("-d", "--data", type=str, default="config/coco.yaml",
+                        help="Path to data config file (.yaml)")
     parser.add_argument("--hyp", type=str, default="config/hyp.cfg",
                         help="Path to hyperparameters config file (.cfg)")
     parser.add_argument("-e", "--epochs", type=int, default=300, help="Number of epochs")
@@ -1284,8 +1131,8 @@ if __name__ == "__main__":
     parser.add_argument("--multiscale_training", action="store_true", help="Allow multi-scale training")
     parser.add_argument("--iou_thres", type=float, default=0.3,
                         help="Evaluation: IOU threshold required to qualify as detected")
-    parser.add_argument("--conf_thres", type=float, default=0.3, help="Evaluation: Object confidence threshold")
-    parser.add_argument("--nms_thres", type=float, default=0.3,
+    parser.add_argument("--conf_thres", type=float, default=0.15, help="Evaluation: Object confidence threshold")
+    parser.add_argument("--nms_thres", type=float, default=0.5,
                         help="Evaluation: IOU threshold for non-maximum suppression")
     parser.add_argument("--sync_bn", type=int, default=-1,
                         help="Set use of SyncBatchNorm")

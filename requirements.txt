@@ -22,3 +22,5 @@ seaborn
 plotly
 kaleido
 scikit-learn
+iterative-stratification
+pyyaml

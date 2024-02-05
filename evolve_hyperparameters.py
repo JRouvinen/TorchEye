@@ -1,8 +1,21 @@
 # https://github.com/ultralytics/yolov3/blob/master/train.py
+# Imports
+import argparse
+import random
+import time
+
+import numpy as np
+import yaml
+
+from train import run
+from utils.loss import fitness
+from utils.utils import print_mutation, colorstr
+from utils.writer import plot_evolve
+
 
 # Evolve hyperparameters
 # Hyperparameter evolution metadata (mutation scale 0-1, lower_limit, upper_limit)
-def evolve():
+def evolve(evolve, hyp, noautoanchor, noval, nosave, save_dir):
     meta = {
         "lr0": (1, 1e-5, 1e-1),  # initial learning rate (SGD=1E-2, Adam=1E-3)
         "lrf": (1, 0.01, 1.0),  # final OneCycleLR learning rate (lr0 * lrf)
@@ -35,16 +48,17 @@ def evolve():
         "copy_paste": (1, 0.0, 1.0),
     }  # segment copy-paste (probability)
 
-    with open(opt.hyp, errors="ignore") as f:
+    with open(hyp, errors="ignore") as f:
         hyp = yaml.safe_load(f)  # load hyps dict
         if "anchors" not in hyp:  # anchors commented in hyp.yaml
             hyp["anchors"] = 3
-    if opt.noautoanchor:
+    if noautoanchor:
         del hyp["anchors"], meta["anchors"]
-    opt.noval, opt.nosave, save_dir = True, True, Path(opt.save_dir)  # only val/save final epoch
+    noval, nosave, save_dir = True, True, save_dir  # only val/save final epoch
     # ei = [isinstance(x, (int, float)) for x in hyp.values()]  # evolvable indices
     evolve_yaml, evolve_csv = save_dir / "hyp_evolve.yaml", save_dir / "evolve.csv"
-    if opt.bucket:
+    '''
+    if bucket:
         # download evolve.csv if exists
         subprocess.run(
             [
@@ -54,8 +68,8 @@ def evolve():
                 str(evolve_csv),
             ]
         )
-
-    for _ in range(opt.evolve):  # generations to evolve
+    '''
+    for _ in range(evolve):  # generations to evolve
         if evolve_csv.exists():  # if evolve.csv exists: select best hyps and mutate
             # Select parent(s)
             parent = "single"  # parent selection method: 'single' or 'weighted'
@@ -88,8 +102,8 @@ def evolve():
             hyp[k] = round(hyp[k], 5)  # significant digits
 
         # Train mutation
-        results = train(hyp.copy(), opt, device, callbacks)
-        callbacks = Callbacks()
+        results = run(hyp.copy(), opt, device) #args, data_config, hyp_config, ver, clearml_cfg
+        #callbacks = Callbacks()
         # Write mutation results
         keys = (
             "metrics/precision",
@@ -100,12 +114,24 @@ def evolve():
             "val/obj_loss",
             "val/cls_loss",
         )
-        print_mutation(keys, results, hyp.copy(), save_dir, opt.bucket)
+        print_mutation(keys, results, hyp.copy(), save_dir)
 
     # Plot results
     plot_evolve(evolve_csv)
-    LOGGER.info(
-        f'Hyperparameter evolution finished {opt.evolve} generations\n'
+    print(
+        f'Hyperparameter evolution finished {evolve} generations\n'
         f"Results saved to {colorstr('bold', save_dir)}\n"
         f'Usage example: $ python train.py --hyp {evolve_yaml}'
 )
+
+if __name__ == "__main__":
+    ver = "0.1"
+    parser = argparse.ArgumentParser(description="Trains the YOLOv3/4 model.")
+    parser.add_argument("--seed", type=int, default=-1, help="Makes results reproducible. Set -1 to disable.")
+    parser.add_argument("--hyp", type=str, default="config/hyp.cfg",
+                        help="Path to hyperparameters config file (.cfg)")
+    parser.add_argument("-e", "--epochs", type=int, default=300, help="Number of epochs")
+    parser.add_argument("--evolve", type=int, default=300, help="Number of generations to evolve hyperparameters")
+    args = parser.parse_args()
+
+    evolve(args.hyp)
