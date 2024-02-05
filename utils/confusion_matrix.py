@@ -136,6 +136,7 @@ class ConfusionMatrix:
         ticklabels = (names + ['background']) if labels else 'auto'
         sn.heatmap(array,
                    linewidths=1,
+                   linecolor='black',
                    ax=ax,
                    annot=nc < 30,
                    annot_kws={
