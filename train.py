@@ -1129,11 +1129,11 @@ if __name__ == "__main__":
     parser.add_argument("--evaluation_interval", type=int, default=10,
                         help="Interval of epochs between evaluations on validation set")
     parser.add_argument("--multiscale_training", action="store_true", help="Allow multi-scale training")
-    parser.add_argument("--iou_thres", type=float, default=0.3,
-                        help="Evaluation: IOU threshold required to qualify as detected")
-    parser.add_argument("--conf_thres", type=float, default=0.15, help="Evaluation: Object confidence threshold")
-    parser.add_argument("--nms_thres", type=float, default=0.5,
-                        help="Evaluation: IOU threshold for non-maximum suppression")
+    parser.add_argument("--iou_thres", type=float, default=0.5,
+                        help="Evaluation: IOU threshold required to qualify as detected [Defaul 0.5]")
+    parser.add_argument("--conf_thres", type=float, default=0.15, help="Evaluation: Object confidence threshold [Default 0.2]")
+    parser.add_argument("--nms_thres", type=float, default=0.4,
+                        help="Evaluation: NMS threshold for non-maximum suppression [Default 0.4]")
     parser.add_argument("--sync_bn", type=int, default=-1,
                         help="Set use of SyncBatchNorm")
     parser.add_argument("--ema", type=int, default=1,

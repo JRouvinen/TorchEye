@@ -3,7 +3,7 @@
 # Author: Juha-Matti Rouvinen
 # Date: 2024-01-05
 # Updated: 2024-01-27
-# Version V3
+# Version V3.1
 ##################################
 import matplotlib
 
@@ -135,6 +135,7 @@ class ConfusionMatrix:
         labels = (0 < nn < 99) and (nn == nc)  # apply names to ticklabels
         ticklabels = (names + ['background']) if labels else 'auto'
         sn.heatmap(array,
+                   linewidths=1,
                    ax=ax,
                    annot=nc < 30,
                    annot_kws={
