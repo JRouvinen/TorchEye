@@ -1,0 +1,12 @@
+train: ..tests/Test_set_v4.2/train/images
+valid: ..tests/Test_set_v4.2/valid/images
+eval: ..tests/Test_set_v4.2/eval/images
+
+nc: 3
+names: ['head', 'helmet', 'person']
+
+model:
+  name: Test_set
+  version: 4.2
+  license: free
+  url: ""
