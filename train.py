@@ -575,7 +575,7 @@ def run(args, data_config, hyp_config, ver, clearml=None, evolve=False):
             if torch.cuda.is_available():
                 mem = '%.3gG' % (torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0)  # (GB)
                 percents = round((torch.cuda.memory_reserved() / 1E9) / gpu_mem_available, 2) * 100
-                print(f'---- GPU Memory usage: {mem} / {percents} % ----')
+                print(f'---- GPU Memory usage: {mem} / {int(percents)} % ----')
             model.train()  # Set model to training mode
             mloss = torch.zeros(4, device=device)  # mean losses
             # https://pytorch.org/tutorials/recipes/recipes/tuning_guide.html
@@ -597,9 +597,8 @@ def run(args, data_config, hyp_config, ver, clearml=None, evolve=False):
                 ###########
                 if warmup_run:
                     if integ_batch_num <= warmup_num:
-                        # scaler.step(optimizer)ät
+                        # scaler.step(optimizer)
                         x_interp = [0, warmup_num]
-                        # accumulate = max(1, np.interp(integ_batch_num, x_interp, [1, num_batches / batch_size]).round())
                         # Simplified version
                         accumulate = max(1, min(integ_batch_num, num_batches / batch_size))
                         for j, x in enumerate(optimizer.param_groups):
@@ -1087,7 +1086,7 @@ def run(args, data_config, hyp_config, ver, clearml=None, evolve=False):
 
 
 if __name__ == "__main__":
-    ver = "1.2.1"
+    ver = "1.2.1A"
     warnings.filterwarnings('ignore', category=UserWarning, append=True)
     # Check folders
     check_folders()

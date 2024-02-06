@@ -161,7 +161,7 @@ class AUROC:
         fig = go.Figure(
             data=[go.Scatterpolar(r=(df[0] * 100).round(0), fill='toself', name='Classes', theta=columns)],
             layout=go.Layout(
-                # title=go.layout.Title(text='Class AUC'),
+                title=go.layout.Title(text='Class AUC'),
                 polar={
                     'radialaxis': {
                         'range': [0, 100],
@@ -210,8 +210,9 @@ class AUROC:
         indx = 0
         textstr = ""
         for x in names.values():
-            #label_score_dict[x] = f'{auc_scores[indx]:.3f}'
-            textstr += f'\n{x} - {auc_scores[indx]:.3f}'
+            if auc_scores[indx] > 0:
+                #label_score_dict[x] = f'{auc_scores[indx]:.3f}'
+                textstr += f'\n{x} - {auc_scores[indx]:.3f}'
             indx += 1
         # these are matplotlib.patch.Patch properties
         props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)

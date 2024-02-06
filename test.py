@@ -229,9 +229,9 @@ def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw, auc_roc
             print(f"- ⏳ - Plotting AUC ROC Curve ----")
             aucroc.plot_auroc_curve(fpr_, tpr_, auc_scores, img_log_path, names, epoch, logger)
             print(f"- ✅ - Plotting AUC ROC Curve - DONE ----")
-            print(f"- ⏳ - Plotting AUC ROC Polar Chart ----")
-            aucroc.plot_polar_chart(auc_scores, img_log_path, names)
-            print(f"- ✅ - Plotting AUC ROC Polar Chart - DONE ----")
+            #print(f"- ⏳ - Plotting AUC ROC Polar Chart ----")
+            #aucroc.plot_polar_chart(auc_scores, img_log_path, names)
+            #print(f"- ✅ - Plotting AUC ROC Polar Chart - DONE ----")
 
         else:
             print(f"- ❎ - AUC scores too low to process -> skipping AUC ROC and polar plotting ----")
@@ -250,7 +250,7 @@ def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw, auc_roc
             #eval_plot_outputs = torch.cat(eval_plot_outputs, axis=0)
             numpy_array = torch.cat(eval_plot_outputs, axis=0).numpy()
             f = f'{img_log_path}/epoch_data/epoch_batch_{epoch}_predictions.jpg'  # filename
-            plot_images(images=imgs, targets=numpy_array, paths=img_log_path, fname=f,conf_thresh=conf_thres)
+            plot_images(images=imgs, targets=eval_plot_outputs, paths=img_log_path, fname=f,conf_thresh=conf_thres)
 
     print_eval_stats(metrics_output, class_names, verbose)
     # Print speeds

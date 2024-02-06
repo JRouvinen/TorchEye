@@ -1,10 +1,10 @@
 import os
 
 path = input("Give dataset folder path:")
-classes_file = path + "/classes.txt"
+classes_file = path + "/classes.names"
 labels_dir = path + "/labels"
 train_path = path + "/train.txt"
-val_path = path + "/val.txt"
+val_path = path + "/validate.txt"
 
 
 def read_file(path):
