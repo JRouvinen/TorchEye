@@ -1,3 +1,11 @@
+#################################
+# plots.py
+# Author: Juha-Matti Rouvinen
+# Date: 2024-01-10
+# Updated: 2024-02-06
+# Version V3
+##################################
+
 import math
 import random
 from pathlib import Path
@@ -8,7 +16,6 @@ import torch
 from PIL import Image
 
 from utils.datasets_v2 import xywh2xyxy
-
 
 def color_list(): #Based on https://github.com/WongKinYiu/PyTorch_YOLOv4/blob/master/utils/plots.py
     # Return first 10 plt colors as (r,g,b) https://stackoverflow.com/questions/51350872/python-from-color-name-to-rgb
@@ -53,7 +60,7 @@ def output_to_target(output, width, height):
 
     return np.array(targets)
 
-def plot_images(images, targets, paths=None, fname='images.jpg', names=None, max_size=640, max_subplots=16):
+def plot_images(images, targets, paths=None, fname='images.jpg', names=None, max_size=640, max_subplots=16,conf_thresh=0.25):
     # Plot image grid with labels
 
     if isinstance(images, torch.Tensor):
@@ -107,7 +114,7 @@ def plot_images(images, targets, paths=None, fname='images.jpg', names=None, max
                 cls = int(classes[j])
                 color = colors[cls % len(colors)]
                 cls = names[cls] if names else cls
-                if labels or conf[j] > 0.25:  # 0.25 conf thresh
+                if labels or conf[j] > conf_thresh:  # 0.25 conf thresh
                     label = '%s' % cls if labels else '%s %.1f' % (cls, conf[j])
                     plot_one_box(box, mosaic, label=label, color=color, line_thickness=tl)
 

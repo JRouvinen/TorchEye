@@ -1,77 +1,77 @@
-[hyperparameters]
+# hyperparameters
 # optimizer
 # Use sgd, adam, adamw, rmsprop, adadelta, adamax
-optimizer=sgd
+optimizer: adam
 #sgd method definition
-nesterov=True
+nesterov: True
 #LR scheduler
 # Schedulers
 # 'CosineAnnealingLR', 'ChainedScheduler','ExponentialLR', 'ReduceLROnPlateau',
 # 'ConstantLR', 'CyclicLR', 'OneCycleLR', 'LambdaLR','MultiplicativeLR',
 # 'StepLR','MultiStepLR','LinearLR','PolynomialLR','CosineAnnealingWarmRestarts'
-lr_scheduler=LambdaLR
-# initial learning rate (SGD=1E-2, Adam=1E-3)
-lr0=0.001
+lr_scheduler: LambdaLR
+# initial learning rate (SGD: 1E-2, Adam: 1E-3)
+lr0: 0.001
 # final OneCycleLR / CyclicLR / CosineAnnealingWarmRestarts learning rate (lr0 * lrf)
-lrf=0.000001
+lrf: 0.000001
 # lr decay (gamma, default 0.9) for decay schedulers
-dec_gamma=0.9
+dec_gamma: 0.9
 # SGD momentum/Adam beta1
-momentum=0.937
+momentum: 0.937
 # optimizer weight decay 5e-4
-weight_decay=0.0005
+weight_decay: 0.0005
 # warmup epochs (fractions ok)
-warmup_epochs=3.0
+warmup_epochs: 3.0
 # warmup initial momentum
-warmup_momentum=0.8 
+warmup_momentum: 0.8 
 # warmup initial bias lr
-warmup_bias_lr=0.1  
+warmup_bias_lr: 0.000001
 # box loss gain
-box=0.05 
+box: 0.05 
 # cls loss gain
-cls=0.5
+cls: 0.5
 # cls BCELoss positive_weight
-cls_pw=1.0
+cls_pw: 1.0
 # obj loss gain (scale with pixels)
-obj=1.0
+obj: 1.0
 # obj BCELoss positive_weight
-obj_pw=1.0 
+obj_pw: 1.0 
 # IoU training threshold
-iou_t=0.20
+iou_t: 0.20
 # anchor-multiple threshold
-anchor_t=4.0
-# anchors=3  # anchors per output layer (0 to ignore)
-# focal loss gamma (efficientDet default gamma=1.5)
-fl_gamma=1.5
+anchor_t: 4.0
+# anchors: 3  # anchors per output layer (0 to ignore)
+# focal loss gamma (efficientDet default gamma: 1.5)
+fl_gamma: 1.5
 # image HSV-Hue augmentation (fraction)
-hsv_h=0.015
+hsv_h: 0.015
 # image HSV-Saturation augmentation (fraction)
-hsv_s=0.7
+hsv_s: 0.7
 # image HSV-Value augmentation (fraction)
-hsv_v=0.4
+hsv_v: 0.4
 # image rotation (+/- deg)
-degrees=0.0
+degrees: 0.0
 # image translation (+/- fraction)
-translate=0.0
+translate: 0.0
 # image scale (+/- gain)
-scale=0.5
+scale: 0.5
 # image shear (+/- deg)
-shear=0.0
+shear: 0.0
 # image perspective (+/- fraction), range 0-0.001
-perspective=0.0
+perspective: 0.0
 # image flip up-down (probability)
-flipud=0.0
+flipud: 0.0
 # image flip left-right (probability)
-fliplr=0.5
+fliplr: 0.5
 # image mosaic (probability)
-mosaic=1.0
+mosaic: 1.0
 # image mixup (probability)
-mixup=0.0
+mixup: 0.0
 # Default 2000
-max_batches_factor=5000
+max_batches_factor: 5000
 # evaluation
 # Weights for training and model evaluation
 # weights for [IOU, Class, Object, Loss] - Training fitness
-w_train=[0.10, 0.30, 0.30, 0.30]
+w_train: [0.10, 0.30, 0.30, 0.30]
 # weights for [P, R, mAP@0.5, f1, ap class] - Model fitness
-w=[0.1, 0.1, 0.5, 0.3, 0.0]
+w: [0.1, 0.1, 0.5, 0.3, 0.0]

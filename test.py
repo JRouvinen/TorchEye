@@ -3,7 +3,7 @@
 # Author: Juha-Matti Rouvinen
 # Date: 2023-07-02
 # Updated: 2024-01-25
-# Version V2.1
+# Version V3
 ##################################
 
 from __future__ import division
@@ -157,9 +157,10 @@ def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw, auc_roc
 
     labels = []
     sample_metrics = []  # List of tuples (TP, confs, pred)
-
-    confusion_matrix = ConfusionMatrix(nc=len(class_names))
-
+    if draw:
+        confusion_matrix = ConfusionMatrix(nc=len(class_names))
+    if auc_roc:
+        aucroc = AUROC(nc=len(class_names), conf=conf_thres, iou_thres=iou_thres)
     #p, r, f1, mp, mr, map50, map, t0, t1 = 0., 0., 0., 0., 0., 0., 0., 0., 0.
     #s = ('%20s' + '%12s' * 6) % ('Class', 'Images', 'Targets', 'P', 'R', 'mAP@.5', 'mAP@.5:.95')
     if draw or auc_roc:
@@ -198,44 +199,26 @@ def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw, auc_roc
 
             )
 
-
         sample_metrics.extend(get_batch_statistics(outputs, targets, iou_threshold=iou_thres))
+        if draw:
+            confusion_matrix.generate_batch_data(outputs, targets)
+        if auc_roc:
+            aucroc.generate_batch_data(outputs, targets)
 
-
-        '''
-        # Compute statistics
-        stats = [np.concatenate(x, 0) for x in zip(*sample_metrics)]  # to numpy
-        # Concatenate sample statistics
-        true_positives, pred_scores, pred_labels = [
-            np.concatenate(x, 0) for x in list(zip(*sample_metrics))]
-        #stats = ap_per_class(true_positives, pred_scores, pred_labels, labels)
-        if len(stats) and stats[0].any():
-            p, r, ap, f1, ap_class = ap_per_class(true_positives, pred_scores, pred_labels, labels)
-            p = p.mean()
-            r = r.mean()
-            ap50 = ap.mean()
-            ap = ap.mean()  # [P, R, AP@0.5, AP@0.5:0.95]
-            mp, mr, map50, map = p.mean(), r.mean(), ap50.mean(), ap.mean()
-            nt = np.bincount(stats[2].astype(np.int64), minlength=len(class_names))  # number of targets per class
-        else:
-            nt = torch.zeros(1)
-        '''
     if draw or auc_roc:
         eval_plot_outputs = non_max_suppression(
             eval_plot_outputs, conf_thres=conf_thres, iou_thres=iou_thres
         )
     if draw:
         # Confusion matrix
-        confusion_matrix.generate_batch_data(eval_plot_outputs, eval_plot_targets)
+        #confusion_matrix.generate_batch_data(eval_plot_outputs, eval_plot_targets)
         confusion_matrix.plot(True, img_log_path, class_names, epoch, logger)
 
     if auc_roc:
-        aucroc = AUROC(nc=len(class_names), conf=conf_thres, iou_thres=iou_thres)
         names = model.names if hasattr(model, 'names') else class_names  # get class names
         if isinstance(names, (list, tuple)):  # old format
             names = dict(enumerate(names))
         # auc roc
-        aucroc.generate_batch_data(eval_plot_outputs, eval_plot_targets)
         # Compute AUC
         auc_scores, fpr_, tpr_ = aucroc.out()
         mauc = auc_scores.mean()
@@ -246,12 +229,12 @@ def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw, auc_roc
             print(f"- ⏳ - Plotting AUC ROC Curve ----")
             aucroc.plot_auroc_curve(fpr_, tpr_, auc_scores, img_log_path, names, epoch, logger)
             print(f"- ✅ - Plotting AUC ROC Curve - DONE ----")
-            #print(f"- ⏳ - Plotting AUC ROC Polar Chart ----")
-            #aucroc.plot_polar_chart(auc_scores, img_log_path, names)
-            #print(f"- ✅ - Plotting AUC ROC Curve - DONE ----")
+            print(f"- ⏳ - Plotting AUC ROC Polar Chart ----")
+            aucroc.plot_polar_chart(auc_scores, img_log_path, names)
+            print(f"- ✅ - Plotting AUC ROC Polar Chart - DONE ----")
 
         else:
-            print(f"- ❎ - No detections in validation set -> skipping AUC ROC and polar plotting ----")
+            print(f"- ❎ - AUC scores too low to process -> skipping AUC ROC and polar plotting ----")
     t1 += time_synchronized() - t
     # if len(sample_metrics) == 0:  # No detections over whole validation set.
     #    print("---- No detections over whole validation set ----")
@@ -264,9 +247,11 @@ def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw, auc_roc
     if metrics_output is not None:
         # Plot
         if draw:
-            for (_, detections) in zip(_, outputs):
-                _draw_and_save_output_image(
-                    _, detections, model.hyperparams['height'], img_log_path, class_names, epoch, draw)
+            #eval_plot_outputs = torch.cat(eval_plot_outputs, axis=0)
+            numpy_array = torch.cat(eval_plot_outputs, axis=0).numpy()
+            f = f'{img_log_path}/epoch_data/epoch_batch_{epoch}_predictions.jpg'  # filename
+            plot_images(images=imgs, targets=numpy_array, paths=img_log_path, fname=f,conf_thresh=conf_thres)
+
     print_eval_stats(metrics_output, class_names, verbose)
     # Print speeds
     t = tuple(x / len(dataloader.dataset.img_files) * 1E3 for x in (t0, t1, t0 + t1)) + (img_size, img_size, dataloader.batch_size)  # tuple

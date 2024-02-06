@@ -97,7 +97,7 @@ from utils.logger import Logger
 from utils.utils import (to_cpu, load_classes, print_environment_info, provide_determinism,
                          worker_seed_set, one_cycle, check_img_size,
                          labels_to_image_weights, labels_to_class_weights, tensor_to_np_array, check_git_status,
-                         check_file_exists)
+                         check_file_exists, check_folder_size, clear_folder)
 from utils.datasets import ListDataset
 from utils.augmentations import AUGMENTATION_TRANSFORMS
 from utils.parse_config import parse_data_config, parse_hyp_config
@@ -107,36 +107,6 @@ from utils.writer import (csv_writer, img_writer_training, img_writer_evaluation
 from utils.datasets_v2 import create_dataloader
 
 
-def _create_data_loader(img_path, batch_size, img_size, n_cpu, multiscale_training=False):
-    """Creates a DataLoader for training.
-
-    :param img_path: Path to file containing all paths to training images.
-    :type img_path: str
-    :param batch_size: Size of each image batch
-    :type batch_size: int
-    :param img_size: Size of each image dimension for yolo
-    :type img_size: int
-    :param n_cpu: Number of cpu threads to use during batch generation
-    :type n_cpu: int
-    :param multiscale_training: Scale images to different sizes randomly
-    :type multiscale_training: bool
-    :return: Returns DataLoader
-    :rtype: DataLoader
-    """
-    dataset = ListDataset(
-        img_path,
-        img_size=img_size,
-        multiscale=multiscale_training,
-        transform=AUGMENTATION_TRANSFORMS)
-    dataloader = DataLoader(
-        dataset,
-        batch_size=batch_size,
-        shuffle=True,
-        num_workers=n_cpu,
-        pin_memory=True,
-        collate_fn=dataset.collate_fn,
-        worker_init_fn=worker_seed_set)
-    return dataloader
 
 # Python code to check and create necessary folders for logging, checkpoints, and output.
 def check_folders():
@@ -254,14 +224,17 @@ def run(args, data_config, hyp_config, ver, clearml=None, evolve=False):
         # Access the parameters from the config file
         w_train = []
         w = []
-        w_train_str = hyp_config['w_train'].strip('][').split(', ')
-        w_str = hyp_config['w'].strip('][').split(', ')
+        if str(args.hyp).endswith('.yaml'):
+            w_train = hyp_config['w_train']
+            w = hyp_config['w']
+        else:
+            w_train_str = hyp_config['w_train'].strip('][').split(', ')
+            w_str = hyp_config['w'].strip('][').split(', ')
+            for i in w_train_str:
+                w_train.append(float(i))
+            for i in w_str:
+                w.append(float(i))
         lr_restart = False
-
-        for i in w_train_str:
-            w_train.append(float(i))
-        for i in w_str:
-            w.append(float(i))
         # #################
         # Create Logging variables
         # #################
@@ -884,8 +857,12 @@ def run(args, data_config, hyp_config, ver, clearml=None, evolve=False):
                 # Plot
                 # if args.evaluation_interval % epoch == 0 and args.verbose:
                 if args.draw:
+                    max_folder_size = 50 #megabytes
+                    folder_size = check_folder_size(f'{logs}/images/epoch_data/')
+                    if folder_size/1000000 >= max_folder_size:
+                        clear_folder(f'{logs}/images/epoch_data/')
                     f = f'{logs}/images/epoch_data/epoch_batch_{epoch}_targets.jpg'  # filename
-                    plot_images(images=imgs, targets=targets, paths=logs, fname=f)
+                    plot_images(images=imgs, targets=targets, paths=logs, fname=f, conf_thresh=args.conf_thres)
                     #pred_array = None
                     #for (image_path, detections) in zip(paths, pred):
                     #    _draw_and_save_output_image(
@@ -1110,7 +1087,7 @@ def run(args, data_config, hyp_config, ver, clearml=None, evolve=False):
 
 
 if __name__ == "__main__":
-    ver = "1.2.0"
+    ver = "1.2.1"
     warnings.filterwarnings('ignore', category=UserWarning, append=True)
     # Check folders
     check_folders()
@@ -1119,7 +1096,7 @@ if __name__ == "__main__":
                         help="Path to model definition file (.cfg)")
     parser.add_argument("-d", "--data", type=str, default="config/coco.yaml",
                         help="Path to data config file (.yaml)")
-    parser.add_argument("--hyp", type=str, default="config/hyp.cfg",
+    parser.add_argument("--hyp", type=str, default="config/hyp.yaml",
                         help="Path to hyperparameters config file (.cfg)")
     parser.add_argument("-e", "--epochs", type=int, default=300, help="Number of epochs")
     parser.add_argument("-v", "--verbose", action='store_true', help="Makes the training more verbose")
@@ -1129,7 +1106,7 @@ if __name__ == "__main__":
     parser.add_argument("--evaluation_interval", type=int, default=10,
                         help="Interval of epochs between evaluations on validation set")
     parser.add_argument("--multiscale_training", action="store_true", help="Allow multi-scale training")
-    parser.add_argument("--iou_thres", type=float, default=0.5,
+    parser.add_argument("--iou_thres", type=float, default=0.2,
                         help="Evaluation: IOU threshold required to qualify as detected [Defaul 0.5]")
     parser.add_argument("--conf_thres", type=float, default=0.15, help="Evaluation: Object confidence threshold [Default 0.2]")
     parser.add_argument("--nms_thres", type=float, default=0.4,

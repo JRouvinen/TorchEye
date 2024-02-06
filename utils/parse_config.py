@@ -3,7 +3,7 @@
 # Author: Juha-Matti Rouvinen
 # Date: 2023-09-22
 # Updated: 2024-01-12
-# Version V2
+# Version V3
 ##################################
 import yaml
 
@@ -52,14 +52,52 @@ def parse_model_config(path):
 def parse_hyp_config(path):
     """Parses the hyperparamaters configuration file"""
     options = dict()
-    with open(path, 'r') as fp:
-        lines = fp.readlines()
-    for line in lines:
-        line = line.strip()
-        if line == '' or line.startswith('#') or line.startswith('['):
-            continue
-        key, value = line.split('=')
-        options[key.strip()] = value.strip()
+    if path.endswith('.yaml'):
+        with open(path, 'r') as file:
+            data_config = yaml.safe_load(file)
+            for x in data_config:
+                options[x] = data_config[x]
+            '''
+            options['optimizer'] = data_config['optimizer']
+            options['nesterov'] = data_config['nesterov']
+            options['lr_scheduler'] = data_config['lr_scheduler']
+            options['lr0'] = data_config['lr0']
+            options['lrf'] = data_config['lrf']
+            options['dec_gamma'] = data_config['dec_gamma']
+            options['momentum'] = data_config['momentum']
+            options['weight_decay'] = data_config['weight_decay']
+            options['warmup_epochs'] = data_config['warmup_epochs']
+            options['warmup_momentum'] = data_config['warmup_momentum']
+            options['warmup_bias_lr'] = data_config['warmup_bias_lr']
+            options['box'] = data_config['box']
+            options['cls'] = data_config['cls']
+            options['cls_pw'] = data_config['cls_pw']
+            options['obj'] = data_config['obj']
+            options['obj_pw'] = data_config['obj_pw']
+            options['iou_t'] = data_config['iou_t']
+            options['anchor_t'] = data_config['anchor_t']
+            options['fl_gamma'] = data_config['fl_gamma']
+            options['hsv_h'] = data_config['hsv_h']
+            options['hsv_s'] = data_config['hsv_s']
+            options['hsv_v'] = data_config['hsv_v']
+            options['degrees'] = data_config['degrees']
+            options['translate'] = data_config['translate']
+            options['scale'] = data_config['scale']
+            options['shear'] = data_config['shear']
+            options['perspective'] = data_config['perspective']
+            options['flipud'] = data_config['flipud']
+            options['flipud'] = data_config['flipud']
+            '''
+
+    else:
+        with open(path, 'r') as fp:
+            lines = fp.readlines()
+        for line in lines:
+            line = line.strip()
+            if line == '' or line.startswith('#') or line.startswith('['):
+                continue
+            key, value = line.split('=')
+            options[key.strip()] = value.strip()
     return options
 
 def parse_data_config(path):

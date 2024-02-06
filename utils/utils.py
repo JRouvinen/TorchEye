@@ -3,13 +3,14 @@
 # Author: Juha-Matti Rouvinen
 # Date: 2023-11-10
 # Updated: 2024-01-16
-# Version V7
+# Version V8
 ##################################
 
 from __future__ import division
 
 import math
 import os
+import shutil
 import time
 import platform
 from copy import deepcopy
@@ -661,3 +662,26 @@ def print_mutation(keys, results, hyp, save_dir, prefix=colorstr("evolve: ")):
         + ", ".join(f"{x:20.5g}" for x in vals)
         + "\n\n"
     )
+
+def check_folder_size(path):
+    total_size = 0
+    for dirpath, dirnames, filenames in os.walk(path):
+        for f in filenames:
+            fp = os.path.join(dirpath, f)
+            # skip if it is symbolic link
+            if not os.path.islink(fp):
+                total_size += os.path.getsize(fp)
+
+    return total_size
+
+def clear_folder(path):
+    folder = path
+    for filename in os.listdir(folder):
+        file_path = os.path.join(folder, filename)
+        try:
+            if os.path.isfile(file_path) or os.path.islink(file_path):
+                os.unlink(file_path)
+            elif os.path.isdir(file_path):
+                shutil.rmtree(file_path)
+        except Exception as e:
+            print('---- Failed to delete %s. Reason: %s ----' % (file_path, e))
