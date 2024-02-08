@@ -1086,7 +1086,7 @@ def run(args, data_config, hyp_config, ver, clearml=None, evolve=False):
 
 
 if __name__ == "__main__":
-    ver = "1.2.1A"
+    ver = "1.2.2"
     warnings.filterwarnings('ignore', category=UserWarning, append=True)
     # Check folders
     check_folders()

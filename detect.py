@@ -3,11 +3,12 @@
 # detect.py
 # Author: Juha-Matti Rouvinen
 # Date: 2023-07-02
-# Updated: 2024-01-16
-# Version V2
+# Updated: 2024-02-08
+# Version V3
 ##################################
 from __future__ import division
 
+import math
 import os
 import argparse
 import datetime
@@ -76,7 +77,7 @@ def detect_directory(model_path, weights_path, img_path, classes, output_path, g
         gpu)
     # if draw != 0:
     _draw_and_save_output_images(
-        img_detections, imgs, img_size, output_path, classes, date, draw)
+        img_detections, imgs, img_size, output_path, classes, date, draw, conf_thres)
 
     print(f"---- Detections were saved to: '{output_path}' ----")
 
@@ -210,7 +211,7 @@ def detect(model, dataloader, output_path, conf_thres, nms_thres, gpu):
     return img_detections, imgs
 
 
-def _draw_and_save_output_images(img_detections, imgs, img_size, output_path, classes, date, draw):
+def _draw_and_save_output_images(img_detections, imgs, img_size, output_path, classes, date, draw, conf_thres):
     """Draws detections in output images and stores them.
 
     :param img_detections: List of detections
@@ -224,17 +225,88 @@ def _draw_and_save_output_images(img_detections, imgs, img_size, output_path, cl
     :param classes: List of class names
     :type classes: [str]
     """
-
+    image_list = []
     # Iterate through images and save plot of detections
     for (image_path, detections) in zip(imgs, img_detections):
-        if draw != 0:
+        if draw == 2:
             print(f"Image {image_path}:")
-        log_file_writer(f"Image {image_path}:", "output/" + date + "_detect" + ".txt")
-        _draw_and_save_output_image(
-            image_path, detections, img_size, output_path, classes, date, draw)
+        elif draw == 1:
+            log_file_writer(f"Image {image_path}:", "output/" + date + "_detect" + ".txt")
+            _draw_and_save_output_image(
+                image_path, detections, img_size, output_path, classes, date, draw, conf_thres)
+
+def draw_save_output_mosaic(imgs, detections, img_size, output_path, classes, conf_thres, epoch):
+    number_of_images = len(imgs)
+    fig = plt.figure()
+    fig.set_dpi(1240)
+    max_vert = 4
+    max_hor = 4
+    if number_of_images >= max_vert * max_hor:
+        ax_array = fig.subplots(max_hor, max_vert, squeeze=False)
+    elif number_of_images <= max_hor:
+        ax_array = fig.subplots(1, max_hor, squeeze=False)
+    else:
+        rows = math.ceil(number_of_images / max_vert)
+        ax_array = fig.subplots(rows, max_vert, squeeze=False)
+    vert_indx = 0
+    hor_indx = 0
+    for (image_path, detections) in zip(imgs, detections):
+        # Create plot
+        img = np.array(Image.open(image_path))
+        #plt.figure()
+        #fig, ax = plt.subplots(1)
+        #ax.imshow(img)
+        ax_array[hor_indx, vert_indx].imshow(img)
+        # Rescale boxes to original image
+        detections = rescale_boxes(detections, img_size, img.shape[:2])
+        unique_labels = detections[:, -1].cpu().unique()
+        n_cls_preds = len(unique_labels)
+        # Bounding-box colors
+        cmap = plt.get_cmap("tab20b")
+        colors = [cmap(i) for i in np.linspace(0, 1, n_cls_preds)]
+        bbox_colors = random.sample(colors, n_cls_preds)
+        for x1, y1, x2, y2, conf, cls_pred in detections:
+            if int(cls_pred) < len(classes) and conf >= conf_thres:
+                box_w = x2 - x1
+                box_h = y2 - y1
+
+                color = bbox_colors[int(np.where(unique_labels == int(cls_pred))[0][0])]
+                # Create a Rectangle patch
+                bbox = patches.Rectangle((x1, y1), box_w, box_h, linewidth=1, edgecolor=color, facecolor="none")
+                # Add the bbox to the plot
+                #ax.add_patch(bbox)
+                ax_array[hor_indx, vert_indx].add_patch(bbox)
+                # Generate text
+                if int(cls_pred) < len(classes):
+                    text = classes[int(cls_pred)]
+                elif int(cls_pred) - 1 < len(classes):
+                    text = classes[int(cls_pred) - 1]
+                else:
+                    text = 'Class fail'
+                # Add label
+                ax_array[hor_indx, vert_indx].text(
+                    x1,
+                    y1,
+                    s=f"{text}: {conf:.2f}",
+                    color="white",
+                    verticalalignment="top",
+                    bbox={"color": color, "pad": 0})
+        # i.thumbnail((64, 64))  # resizes image in-place
+        if vert_indx < max_vert - 1:
+            vert_indx += 1
+        else:
+            hor_indx += 1
+            vert_indx = 0
+
+    fig.savefig(f'{output_path}/epoch_data/{epoch}_eval_detections.png')
+    # displaying the title
+    plt.close('all')
+    # https://github.com/matplotlib/mplfinance/issues/386 -> failed to allocate bitmap
+    fig.clf()
 
 
-def _draw_and_save_output_image(image_path, detections, img_size, output_path, classes, date, draw):
+
+def _draw_and_save_output_image(image_path, detections, img_size, output_path, classes, date, draw, conf_thres):
     """Draws detections in output image and stores this.
 
     :param image_path: Path to input image
@@ -261,6 +333,7 @@ def _draw_and_save_output_image(image_path, detections, img_size, output_path, c
                             "output/" + date + "_detect" + ".txt")
 
     else:
+        image_list = []
         # Create plot
         img = np.array(Image.open(image_path))
         plt.figure()
@@ -275,11 +348,11 @@ def _draw_and_save_output_image(image_path, detections, img_size, output_path, c
         colors = [cmap(i) for i in np.linspace(0, 1, n_cls_preds)]
         bbox_colors = random.sample(colors, n_cls_preds)
         for x1, y1, x2, y2, conf, cls_pred in detections:
-            if not draw:
+            if draw == 1:
                 print(f"\t+ Label: {classes[int(cls_pred)]} | Confidence: {conf.item():0.4f}")
                 log_file_writer(f"\t+ Label: {classes[int(cls_pred)]} | Confidence: {conf.item():0.4f}",
                                 "output/" + date + "_detect" + ".txt")
-            if int(cls_pred) < len(classes):
+            if int(cls_pred) < len(classes) and conf >= conf_thres:
                 box_w = x2 - x1
                 box_h = y2 - y1
 
@@ -311,17 +384,18 @@ def _draw_and_save_output_image(image_path, detections, img_size, output_path, c
         plt.axis("off")
         plt.gca().xaxis.set_major_locator(NullLocator())
         plt.gca().yaxis.set_major_locator(NullLocator())
-        if draw:
-            filename = os.path.basename(image_path).split(".")[0]
-            output_path = os.path.join(output_path+f'/epoch_data/', f"{filename}_eval_epoch_{date}.png")
+        if draw == 3:
+            #filename = os.path.basename(image_path).split(".")[0]
+            #output_path = os.path.join(output_path+f'/epoch_data/', f"{filename}_eval_epoch_{date}.png")
+            return plt
         else:
             filename = os.path.basename(image_path).split(".")[0]
             output_path = os.path.join(output_path+f'', f"{filename}.png")
-        plt.savefig(output_path, bbox_inches="tight", pad_inches=0.0)
-        plt.close()
+            plt.savefig(output_path, bbox_inches="tight", pad_inches=0.0)
+            plt.close()
 
 
-def draw_and_save_return_image(image, detections, img_size, classes, class_colors):
+def draw_and_save_return_image(image, detections, img_size, classes, class_colors, conf_thres):
     """Draws detections in output image and stores this.
 
         :param image_path: Path to input image
@@ -440,7 +514,7 @@ def run():
                         help="Path to hyperparameters config file (.cfg)")
     parser.add_argument("-o", "--output", type=str, default="output", help="Path to output directory")
     parser.add_argument("-b", "--batch_size", type=int, default=4, help="Size of each image batch")
-    parser.add_argument("-d", "--draw", type=int, default=0, help="Draw detection boxes into images")
+    parser.add_argument("-d", "--draw", type=int, default=0, help="Draw detection boxes into images [Default=0]")
     parser.add_argument("--img_size", type=int, default=832, help="Size of each image dimension for yolo")
     parser.add_argument("--n_cpu", type=int, default=4, help="Number of cpu threads to use during batch generation")
     parser.add_argument("--conf_thres", type=float, default=0.35, help="Object confidence threshold")

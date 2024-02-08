@@ -230,7 +230,7 @@ if __name__ == '__main__':
                 img_detections, imgs = detect_image(model, img, int(args.reso), confidence,
                                                     nms_thesh)  # model, image, img_size=416, conf_thres=0.5, nms_thres=0.5
                 # Annotate frame with detections
-                img_with_detection = draw_and_save_return_image(orig_im, img_detections[0], int(args.reso), classes, class_colors)
+                img_with_detection = draw_and_save_return_image(orig_im, img_detections[0], int(args.reso), classes, class_colors, confidence)
                 cv2.imwrite("video_annotation.jpg", img_with_detection)
                 # Display annotated frame
                 if type(img_with_detection) == int:

@@ -18,7 +18,8 @@ from torch.autograd import Variable
 from torch.utils.data import DataLoader, SequentialSampler, RandomSampler, SubsetRandomSampler, WeightedRandomSampler, \
     BatchSampler
 
-from detect import _draw_and_save_output_image
+from detect import _draw_and_save_output_image, _draw_and_save_output_images, draw_and_save_return_image, \
+    draw_save_output_mosaic
 from models import *
 from utils import plots
 from utils.auc_roc import AUROC
@@ -247,10 +248,7 @@ def _evaluate(model, dataloader, class_names, img_log_path, epoch, draw, auc_roc
     if metrics_output is not None:
         # Plot
         if draw:
-            #eval_plot_outputs = torch.cat(eval_plot_outputs, axis=0)
-            numpy_array = torch.cat(eval_plot_outputs, axis=0).numpy()
-            f = f'{img_log_path}/epoch_data/epoch_batch_{epoch}_predictions.jpg'  # filename
-            plot_images(images=imgs, targets=eval_plot_outputs, paths=img_log_path, fname=f,conf_thresh=conf_thres)
+            draw_save_output_mosaic(_, eval_plot_outputs, img_size, img_log_path, class_names, conf_thres, epoch)
 
     print_eval_stats(metrics_output, class_names, verbose)
     # Print speeds
