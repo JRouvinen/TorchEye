@@ -24,3 +24,4 @@ kaleido
 scikit-learn
 iterative-stratification
 pyyaml
+openpyxl

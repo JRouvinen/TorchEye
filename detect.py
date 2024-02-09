@@ -237,8 +237,8 @@ def _draw_and_save_output_images(img_detections, imgs, img_size, output_path, cl
 
 def draw_save_output_mosaic(imgs, detections, img_size, output_path, classes, conf_thres, epoch):
     number_of_images = len(imgs)
-    fig = plt.figure()
-    fig.set_dpi(1240)
+    fig = plt.figure(figsize=(30,30))
+    #fig.set_dpi(1920)
     max_vert = 4
     max_hor = 4
     if number_of_images >= max_vert * max_hor:
@@ -276,13 +276,22 @@ def draw_save_output_mosaic(imgs, detections, img_size, output_path, classes, co
                 # Add the bbox to the plot
                 #ax.add_patch(bbox)
                 ax_array[hor_indx, vert_indx].add_patch(bbox)
-                # Generate text
-                if int(cls_pred) < len(classes):
-                    text = classes[int(cls_pred)]
-                elif int(cls_pred) - 1 < len(classes):
-                    text = classes[int(cls_pred) - 1]
+                if len(detections) > 5:
+                    # Generate text
+                    if int(cls_pred) < len(classes):
+                        text = int(cls_pred)
+                    elif int(cls_pred) - 1 < len(classes):
+                        text = int(cls_pred) - 1
+                    else:
+                        text = '~'
                 else:
-                    text = 'Class fail'
+                    # Generate text
+                    if int(cls_pred) < len(classes):
+                        text = classes[int(cls_pred)]
+                    elif int(cls_pred) - 1 < len(classes):
+                        text = classes[int(cls_pred) - 1]
+                    else:
+                        text = 'Class fail'
                 # Add label
                 ax_array[hor_indx, vert_indx].text(
                     x1,

@@ -66,18 +66,17 @@ import configparser
 import tqdm
 import torch
 import warnings
-import torch.optim as optim
 import numpy as np
 from torchsummary import summary
 from tensorboard import program
 from terminaltables import AsciiTable
 from torch.cuda import amp
 
-from detect import _draw_and_save_output_image
 from utils import threaded
 from utils.confusion_matrix import ConfusionMatrix
 from utils.folder_management import create_exp_folder_structure
 from utils.optimizer_scheduler_selector import get_scheduler, get_optimizer
+from utils.pandas_writer import df_to_excel
 from utils.plots import plot_images
 from utils.torch_utils import ModelEMA
 from torch.optim.lr_scheduler import ConstantLR, ExponentialLR
@@ -103,9 +102,8 @@ from utils.augmentations import AUGMENTATION_TRANSFORMS
 from utils.parse_config import parse_data_config, parse_hyp_config
 from utils.loss import compute_loss, fitness, training_fitness
 from utils.writer import (csv_writer, img_writer_training, img_writer_evaluation,
-                          log_file_writer, img_writer_eval_stats, open_file)
+                          log_file_writer, img_writer_eval_stats, open_file, csvDictWriter)
 from utils.datasets_v2 import create_dataloader
-
 
 
 # Python code to check and create necessary folders for logging, checkpoints, and output.
@@ -127,6 +125,7 @@ def check_folders():
     output_path_there = os.path.exists(local_path + "/error_logs/")
     if not output_path_there:
         os.mkdir(local_path + "/error_logs/")
+
 
 @threaded()
 def run_tensorboard(tracking_address):
@@ -179,7 +178,7 @@ def run(args, data_config, hyp_config, ver, clearml=None, evolve=False):
             model_name = args.name
         else:
             if str(args.data).endswith('.yaml'):
-                model_name = data_config['model']['name']+ '_' + str(date)
+                model_name = data_config['model']['name'] + '_' + str(date)
             else:
                 model_name = data_config["model_name"]
                 if model_name == '':
@@ -262,22 +261,12 @@ def run(args, data_config, hyp_config, ver, clearml=None, evolve=False):
         max_grad_norm = 1.0
 
         ################
-        # Create CSV files - version 0.3.8
+        # Create excels plot headers
         ################
+        training_plots_header = ['Iterations', 'Iou Loss', 'Object Loss', 'Class Loss', 'Loss', 'Batch Loss',
+                                 'Mean Loss', 'Learning rate']
+        evaluation_plots_header = ['Epoch', 'Epochs', 'Precision', 'Recall', 'mAP', 'F1', 'Fitness']
 
-        # Create training csv file
-        # header = ['Iterations', 'Iou Loss', 'Object Loss', 'Class Loss', 'Loss', 'Learning Rate']
-        header = ['Iterations', 'Iou Loss', 'Object Loss', 'Class Loss', 'Loss', 'Mean loss',
-                  'Learning Rate']
-        csv_writer(header, logs + "/" + model_name + "_training_plots.csv", 'a')
-
-        # Create evaluation csv file
-        header = ['Epoch', 'Epochs', 'Precision', 'Recall', 'mAP', 'F1', 'Fitness']
-        csv_writer(header, logs + "/" + model_name + "_evaluation_plots.csv", 'a')
-
-        # Create validation csv file
-        # header = ['Index', 'Class', 'AP']
-        # csv_writer(header, f"checkpoints/best/{model_name}_eval_stats.csv", 'a')
         '''
         346-430
         This code is used for training a model. It includes the following steps:
@@ -407,7 +396,7 @@ def run(args, data_config, hyp_config, ver, clearml=None, evolve=False):
 
         optimizer, model = get_optimizer(req_optimizer,
                                          params, pg0, pg1, pg2,
-                                         hyp_config['lr0'],hyp_config['momentum'],
+                                         hyp_config['lr0'], hyp_config['momentum'],
                                          model, model_logfile)
 
         if req_optimizer == 'sgd':
@@ -507,7 +496,9 @@ def run(args, data_config, hyp_config, ver, clearml=None, evolve=False):
             req_scheduler = args.scheduler
         else:
             req_scheduler = hyp_config['lr_scheduler']
-        scheduler = get_scheduler(req_scheduler,optimizer,args.epochs,num_steps, args.evaluation_interval,dataloader,hyp_config['lr0'], hyp_config['lrf'],hyp_config['dec_gamma'],args.verbose)
+        scheduler = get_scheduler(req_scheduler, optimizer, args.epochs, num_steps, args.evaluation_interval,
+                                  dataloader, hyp_config['lr0'], hyp_config['lrf'], hyp_config['dec_gamma'],
+                                  args.verbose)
 
         print(
             f"- ⚠ - Using {req_optimizer} - optimizer with {req_scheduler} - LR scheduler")
@@ -622,9 +613,9 @@ def run(args, data_config, hyp_config, ver, clearml=None, evolve=False):
                     if not lr_restart:
                         lr_restart = True
                         # Get learning rate
-                        #lr = float(hyp_config['lr0'])
+                        # lr = float(hyp_config['lr0'])
                         # Set learning rate
-                        #for g in optimizer.param_groups:
+                        # for g in optimizer.param_groups:
                         #    g['lr'] = lr
                 # Multi-scale not implemented -> snippet below is just an test example
                 '''
@@ -746,8 +737,6 @@ def run(args, data_config, hyp_config, ver, clearml=None, evolve=False):
                             float(mloss_mean),  # Mean Loss
                             (lr_float)  # Learning rate
                             ]
-                    # header = ['Iterations', 'Iou Loss', 'Object Loss', 'Class Loss', 'Loss', 'Batch loss','Mean loss','Learning Rate']
-                    csv_writer(data, logs + "/" + model_name + "_training_plots.csv", 'a')
 
                     # ############
                     # ClearML csv reporter logger - V0.3.6
@@ -774,6 +763,12 @@ def run(args, data_config, hyp_config, ver, clearml=None, evolve=False):
                                         batch_loss_array,
                                         batches_array,
                                         logs + '/' + model_name, logger)
+
+                    train_array_list = [batches_array.tolist(), iou_loss_array.tolist(), obj_loss_array.tolist(),
+                                        cls_loss_array.tolist(), train_loss_array.tolist(), batch_loss_array.tolist(),
+                                        lr_array.tolist()
+                                        ]
+                    df_to_excel(train_array_list, training_plots_header, f'{logs}/{model_name}_training_plots.xlsx')
             # #############
             # Save progress -> changed on version 0.3.11F to save every eval epoch
             # #############
@@ -854,27 +849,13 @@ def run(args, data_config, hyp_config, ver, clearml=None, evolve=False):
                 )
 
                 # Plot
-                # if args.evaluation_interval % epoch == 0 and args.verbose:
                 if args.draw:
-                    max_folder_size = 50 #megabytes
+                    max_folder_size = 50  # megabytes
                     folder_size = check_folder_size(f'{logs}/images/epoch_data/')
-                    if folder_size/1000000 >= max_folder_size:
+                    if folder_size / 1000000 >= max_folder_size:
                         clear_folder(f'{logs}/images/epoch_data/')
                     f = f'{logs}/images/epoch_data/epoch_batch_{epoch}_targets.jpg'  # filename
                     plot_images(images=imgs, targets=targets, paths=logs, fname=f, conf_thresh=args.conf_thres)
-                    #pred_array = None
-                    #for (image_path, detections) in zip(paths, pred):
-                    #    _draw_and_save_output_image(
-                    #        image_path, detections, model.hyperparams['height'], model_logs_path, class_names, date, args.draw)
-
-
-                #    # if tb_writer:
-                #    #     tb_writer.add_image(f, result, dataformats='HWC', global_step=epoch)
-                #    #     tb_writer.add_graph(model, imgs)  # add model to tensorboard
-
-                # Create confusion matrix -> changed in version 0.4.7
-                # confusion_matrix.generate_batch_data(eval_outputs, eval_targets)
-                # confusion_matrix.plot(True, model_imgs_logs_path, class_names)
 
                 if metrics_output is not None:
                     precision, recall, AP, f1, ap_class = metrics_output
@@ -934,6 +915,11 @@ def run(args, data_config, hyp_config, ver, clearml=None, evolve=False):
                     img_writer_evaluation(precision_array, recall_array, m_ap_array, f1_array,
                                           curr_fitness_array, train_fitness_array, eval_epoch_array,
                                           logs + '/' + model_name, logger)
+
+                    eval_array_list = [eval_epoch_array.tolist(), precision_array.tolist(), recall_array.tolist(),
+                                       m_ap_array.tolist(), f1_array.tolist()
+                                       ]
+                    df_to_excel(eval_array_list, evaluation_plots_header, f'{logs}/{model_name}_evaluation_plots.xlsx')
 
                     if curr_fitness > best_fitness and epoch:
                         best_fitness = curr_fitness
@@ -1015,19 +1001,6 @@ def run(args, data_config, hyp_config, ver, clearml=None, evolve=False):
                                 url=csv_url
                             )
 
-                    ############################
-                    # Model evaluation plots logging
-                    #############################
-
-                    data = [epoch,
-                            args.epochs,
-                            precision.mean(),  # Precision
-                            recall.mean(),  # Recall
-                            AP.mean(),  # mAP
-                            f1.mean(),  # f1
-                            curr_fitness  # Fitness
-                            ]
-                    csv_writer(data, logs + "/" + model_name + "_evaluation_plots.csv", 'a')
                     # ############
                     # ClearML csv reporter logger - V0.3.6
                     # ############
@@ -1086,7 +1059,7 @@ def run(args, data_config, hyp_config, ver, clearml=None, evolve=False):
 
 
 if __name__ == "__main__":
-    ver = "1.2.2"
+    ver = "1.3.0"
     warnings.filterwarnings('ignore', category=UserWarning, append=True)
     # Check folders
     check_folders()
@@ -1107,7 +1080,8 @@ if __name__ == "__main__":
     parser.add_argument("--multiscale_training", action="store_true", help="Allow multi-scale training")
     parser.add_argument("--iou_thres", type=float, default=0.2,
                         help="Evaluation: IOU threshold required to qualify as detected [Defaul 0.5]")
-    parser.add_argument("--conf_thres", type=float, default=0.15, help="Evaluation: Object confidence threshold [Default 0.2]")
+    parser.add_argument("--conf_thres", type=float, default=0.20,
+                        help="Evaluation: Object confidence threshold [Default 0.2]")
     parser.add_argument("--nms_thres", type=float, default=0.4,
                         help="Evaluation: NMS threshold for non-maximum suppression [Default 0.4]")
     parser.add_argument("--sync_bn", type=int, default=-1,

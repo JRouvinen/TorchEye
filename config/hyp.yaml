@@ -1,7 +1,7 @@
 # hyperparameters
 # optimizer
 # Use sgd, adam, adamw, rmsprop, adadelta, adamax
-optimizer: adam
+optimizer: sgd
 #sgd method definition
 nesterov: True
 #LR scheduler
@@ -11,7 +11,7 @@ nesterov: True
 # 'StepLR','MultiStepLR','LinearLR','PolynomialLR','CosineAnnealingWarmRestarts'
 lr_scheduler: LambdaLR
 # initial learning rate (SGD: 1E-2, Adam: 1E-3)
-lr0: 0.001
+lr0: 0.01
 # final OneCycleLR / CyclicLR / CosineAnnealingWarmRestarts learning rate (lr0 * lrf)
 lrf: 0.000001
 # lr decay (gamma, default 0.9) for decay schedulers
@@ -42,7 +42,7 @@ iou_t: 0.20
 anchor_t: 4.0
 # anchors: 3  # anchors per output layer (0 to ignore)
 # focal loss gamma (efficientDet default gamma: 1.5)
-fl_gamma: 1.5
+fl_gamma: 0.0
 # image HSV-Hue augmentation (fraction)
 hsv_h: 0.015
 # image HSV-Saturation augmentation (fraction)
@@ -64,7 +64,7 @@ flipud: 0.0
 # image flip left-right (probability)
 fliplr: 0.5
 # image mosaic (probability)
-mosaic: 1.0
+mosaic: 0.5
 # image mixup (probability)
 mixup: 0.0
 # Default 2000

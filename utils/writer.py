@@ -2,14 +2,14 @@
 # writer.py
 # Author: Juha-Matti Rouvinen
 # Date: 2023-07-02
-# Updated: 2024-01-27
-# Version V5.1
+# Updated: 2024-02-09
+# Version V5.2
 ##################################
 import csv
 import matplotlib
 import pandas as pd
 from matplotlib.pyplot import hist2d
-
+#from utils import threaded
 from utils.loss import fitness
 
 matplotlib.use("Agg")
@@ -20,7 +20,7 @@ import numpy as np
 def open_file(path):
     file = matplotlib.pyplot.imread(path, format=None)
     return file
-
+#@threaded
 def csv_writer(data, filename, oper):
     #header = ['Iterations','Iou Loss','Object Loss','Class Loss','Loss','Learning Rate']
     #header = ['Epoch', 'Epochs', 'Precision', 'Recall', 'mAP', 'F1']
@@ -31,6 +31,28 @@ def csv_writer(data, filename, oper):
         table_writer.writerow(data)
     f.close()
 
+def csvDictWriter(data, filename, header):
+    # my data rows as dictionary objects
+    mydict = data
+
+    # field names
+    fields = header
+
+    # name of csv file
+    filename = filename
+
+    # writing to csv file
+    with open(filename, 'w') as csvfile:
+        # creating a csv dict writer object
+        writer = csv.DictWriter(csvfile, fieldnames=fields)
+
+        # writing headers (field names)
+        writer.writeheader()
+
+        # writing data rows
+        writer.writerows(mydict)
+
+#@threaded
 def img_writer_training(iou_loss, obj_loss, cls_loss, loss, lr, batch_loss,iteration, filename,logger):
     #header = ['Epoch', 'Epochs','Iou Loss','Object Loss','Class Loss','Loss','Learning Rate']    # img_writer_data = global_step,x_loss,y_loss,w_loss,h_loss,conf_loss,cls_loss,loss,recall,precision
     #log_path = filename.replace("checkpoints", "")
@@ -132,7 +154,7 @@ def img_writer_training(iou_loss, obj_loss, cls_loss, loss, lr, batch_loss,itera
     plt.close('all')
     # https://github.com/matplotlib/mplfinance/issues/386 -> failed to allocate bitmap
     fig.clf()
-
+#@threaded
 def img_writer_class_dist(weights,classes,values, header,filename):
     fig = plt.figure(layout="constrained", figsize=(20, 10))
     # fig.set_dpi(1240)
@@ -168,8 +190,7 @@ def img_writer_class_dist(weights,classes,values, header,filename):
     #    logger.add_figure(f'{header}_for_dataset', fig, global_step=1, close=True, walltime=None)
     plt.close('all')
     fig.clf()
-
-
+#@threaded
 def img_writer_evaluation(precision, recall, mAP, f1, ckpt_fitness,train_fitness,epoch, filename,logger):
     #img_writer_evaluation(precision_array, recall_array, mAP_array, f1_array, ap_cls_array, curr_fitness_array, eval_epoch_array, args.logdir + "/" + date)
     # Placing the plots in the plane
@@ -264,7 +285,7 @@ def img_writer_evaluation(precision, recall, mAP, f1, ckpt_fitness,train_fitness
     plt.close('all')
     fig.clf()
 
-
+#@threaded
 def img_writer_eval_stats(classes,ap,filename):
     #header = ['Epoch', 'Epochs','Iou Loss','Object Loss','Class Loss','Loss','Learning Rate']    # img_writer_data = global_step,x_loss,y_loss,w_loss,h_loss,conf_loss,cls_loss,loss,recall,precision
     #log_path = filename.replace("checkpoints", "")
@@ -286,7 +307,7 @@ def img_writer_eval_stats(classes,ap,filename):
     plt.close('all')
     fig.clf()
 
-
+#@threaded
 def img_writer_losses(train_loss, eval_loss, epoch, filename):
     #img_writer_evaluation(precision_array, recall_array, mAP_array, f1_array, ap_cls_array, curr_fitness_array, eval_epoch_array, args.logdir + "/" + date)
     # Placing the plots in the plane
@@ -307,7 +328,7 @@ def img_writer_losses(train_loss, eval_loss, epoch, filename):
     plt.close('all')
     fig.clf()
 
-
+#@threaded
 def plot_evolve(evolve_csv="path/to/evolve.csv"):  # from utils.plots import *; plot_evolve()
     # Plot evolve.csv hyp evolution results
     evolve_csv = evolve_csv
@@ -333,7 +354,7 @@ def plot_evolve(evolve_csv="path/to/evolve.csv"):  # from utils.plots import *; 
     plt.savefig(f, dpi=200)
     plt.close()
     print(f"Saved {f}")
-
+#@threaded
 def log_file_writer(data, filename):
     #log_path = filename.replace("checkpoints", "")
     with open(filename, 'a', encoding='UTF8') as f:
