@@ -1,6 +1,6 @@
-# YoloV3 PyTorch
+# TorchEye
 
-## This is an minimal YoloV3 implementation, with support for training, inference and evaluation.
+## This is an YOLOv3/v4 implementation, with support for training, inference and evaluation.
 
 ![](https://img.shields.io/static/v1?label=python&message=3.10&color=blue)
 ![](https://img.shields.io/static/v1?label=pytorch&message=2.0&color=<COLOR>)
