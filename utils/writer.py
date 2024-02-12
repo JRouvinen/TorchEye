@@ -8,14 +8,13 @@
 import csv
 import matplotlib
 import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.pyplot import hist2d
 #from utils import threaded
 from utils.loss import fitness
-
-matplotlib.use("Agg")
 from matplotlib import pyplot as plt
-#import matplotlib.pyplot as plt
-import numpy as np
+matplotlib.use("Agg")
 
 def open_file(path):
     file = matplotlib.pyplot.imread(path, format=None)
@@ -361,3 +360,43 @@ def log_file_writer(data, filename):
         # write the data
         f.write("\n"+data)
     f.close()
+
+def img_polar_chart(ap_data, log_path, names):
+    '''
+    Generate polar_chart for auc scores.
+    auc_scores : [dict] auc_scores
+    names : [list] cls names
+    return None
+    save img at Path(save_dir) / 'polar_chart.png'
+    '''
+
+    # Creating a new figure and setting up the resolution
+    fig = plt.figure(dpi=200)
+
+    # Change the coordinate system from scaler to polar
+    ax = fig.add_subplot(projection='polar')
+
+    # Generating the X and Y axis data points
+    #r = [8, 8, 8, 8, 8, 8, 8, 8, 8]
+    r =  1
+    indx = 0
+    values = []
+    # creating an array containing the
+    # radian values
+    for i in ap_data:
+        if i[0] == indx:
+            values.append(i[2])
+        else:
+            values.append(0)
+        indx += 1
+
+    #rads = np.arange(0, values, 1)
+    # plotting the circle
+    for rad in values:
+        plt.polar(rad, r, 'g.')
+
+    fig.savefig(log_path + '_polar_plot.png')
+    # displaying the title
+    plt.title('polar_plot')
+    plt.close('all')
+    fig.clf()

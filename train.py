@@ -63,6 +63,8 @@ import sys
 import time
 import traceback
 import configparser
+
+import psutil
 import tqdm
 import torch
 import warnings
@@ -76,7 +78,7 @@ from utils import threaded
 from utils.confusion_matrix import ConfusionMatrix
 from utils.folder_management import create_exp_folder_structure
 from utils.optimizer_scheduler_selector import get_scheduler, get_optimizer
-from utils.pandas_writer import df_to_excel
+from utils.pandas_writer import df_to_excel, df_create_files
 from utils.plots import plot_images
 from utils.torch_utils import ModelEMA
 from torch.optim.lr_scheduler import ConstantLR, ExponentialLR
@@ -102,7 +104,7 @@ from utils.augmentations import AUGMENTATION_TRANSFORMS
 from utils.parse_config import parse_data_config, parse_hyp_config
 from utils.loss import compute_loss, fitness, training_fitness
 from utils.writer import (csv_writer, img_writer_training, img_writer_evaluation,
-                          log_file_writer, img_writer_eval_stats, open_file, csvDictWriter)
+                          log_file_writer, img_writer_eval_stats, open_file, csvDictWriter, img_polar_chart)
 from utils.datasets_v2 import create_dataloader
 
 
@@ -247,6 +249,7 @@ def run(args, data_config, hyp_config, ver, clearml=None, evolve=False):
         train_loss_array = np.array([])
         lr_array = np.array([])
         eval_epoch_array = np.array([])
+        eval_epoch_array2 = np.array([])
         precision_array = np.array([])
         recall_array = np.array([])
         m_ap_array = np.array([])
@@ -255,7 +258,27 @@ def run(args, data_config, hyp_config, ver, clearml=None, evolve=False):
         # ap_cls_array = np.array([])
         curr_fitness_array = np.array([])
         train_fitness_array = np.array([])
-
+        gpu_usage_array = np.array([])
+        epochs_list = []
+        max_batches_list = []
+        current_time_list = []
+        tr_ar_list = []
+        comm_arr_list = []
+        eval_arr_list = []
+        eval_stats_class_array = []
+        eval_stats_ap_array = np.array([])
+        # Create Excel files
+        # Create and write model log files
+        #excel_logfile = f'{args.logdir}/running_experiment.xlsx'
+        df_create_files(f'{args.logdir}/running_experiment.xlsx')
+        # Create new log file
+        #f = open(excel_logfile, "w")
+        #f.close()
+        #excel_logfile = f'{logs}/{model_name}_experiment_plots.xlsx'
+        # Create new log file
+        #f = open(excel_logfile, "w")
+        #f.close()
+        df_create_files(f'{logs}/{model_name}_experiment_plots.xlsx')
         # last_opt_step = -1
         # Define the maximum gradient norm for clipping
         max_grad_norm = 1.0
@@ -263,9 +286,12 @@ def run(args, data_config, hyp_config, ver, clearml=None, evolve=False):
         ################
         # Create excels plot headers
         ################
-        training_plots_header = ['Iterations', 'Iou Loss', 'Object Loss', 'Class Loss', 'Loss', 'Batch Loss',
-                                 'Mean Loss', 'Learning rate']
-        evaluation_plots_header = ['Epoch', 'Epochs', 'Precision', 'Recall', 'mAP', 'F1', 'Fitness']
+        tr_plots_hdr = ['Iterations', 'Iou Loss', 'Object Loss', 'Class Loss', 'Loss', 'Batch Loss',
+                                 'Learning rate']
+        eval_plots_hdr = ['Epoch', 'Precision', 'Recall', 'mAP', 'F1', 'Model Fitness', 'Train Fitness']
+        comm_exp_hdr = ['Epoch', 'Epochs','Batch','Max batches','GPU/CPU usage','Updated']
+        eval_stats_class_hdr = ['Index', 'Class','AP']
+        #eval_stats_class_hdr = ['Index', 'AP']
 
         '''
         346-430
@@ -567,6 +593,8 @@ def run(args, data_config, hyp_config, ver, clearml=None, evolve=False):
                 mem = '%.3gG' % (torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0)  # (GB)
                 percents = round((torch.cuda.memory_reserved() / 1E9) / gpu_mem_available, 2) * 100
                 print(f'---- GPU Memory usage: {mem} / {int(percents)} % ----')
+            else:
+                percents = psutil.cpu_percent()
             model.train()  # Set model to training mode
             mloss = torch.zeros(4, device=device)  # mean losses
             # https://pytorch.org/tutorials/recipes/recipes/tuning_guide.html
@@ -753,6 +781,12 @@ def run(args, data_config, hyp_config, ver, clearml=None, evolve=False):
 
                     # img writer
                     batches_array = np.concatenate((batches_array, np.array([batches_done])))
+                    # PowerBi reporting parameters
+                    epochs_list.append(args.epochs)
+                    max_batches_list.append(max_batches)
+                    gpu_usage_array = np.concatenate((gpu_usage_array, np.array([percents])))
+                    # ---------------------------------------
+                    eval_epoch_array = np.concatenate((eval_epoch_array, np.array([epoch])))
                     iou_loss_array = np.concatenate((iou_loss_array, np.array([float(loss_items[0])])))
                     obj_loss_array = np.concatenate((obj_loss_array, np.array([float(loss_items[1])])))
                     cls_loss_array = np.concatenate((cls_loss_array, np.array([float(loss_items[2])])))
@@ -764,11 +798,31 @@ def run(args, data_config, hyp_config, ver, clearml=None, evolve=False):
                                         batches_array,
                                         logs + '/' + model_name, logger)
 
-                    train_array_list = [batches_array.tolist(), iou_loss_array.tolist(), obj_loss_array.tolist(),
+                    tr_ar_list = [batches_array.tolist(), iou_loss_array.tolist(), obj_loss_array.tolist(),
                                         cls_loss_array.tolist(), train_loss_array.tolist(), batch_loss_array.tolist(),
                                         lr_array.tolist()
                                         ]
-                    df_to_excel(train_array_list, training_plots_header, f'{logs}/{model_name}_training_plots.xlsx')
+                    t = time.localtime()
+                    current_time = time.strftime("%H:%M:%S", t)
+                    current_time_list.append(current_time)
+                    comm_arr_list = [eval_epoch_array.tolist(), epochs_list, batches_array.tolist(),
+                                         max_batches_list, gpu_usage_array.tolist(), current_time_list
+                                         ]
+                    df_to_excel(tr_ar_list, tr_plots_hdr, comm_arr_list,
+                                    comm_exp_hdr,
+                                    eval_arr_list, eval_plots_hdr,eval_stats_class_array,eval_stats_class_hdr, 
+                                f'{logs}/{model_name}_experiment_plots.xlsx')
+                    if args.powerbi:
+                        df_to_excel(tr_ar_list, tr_plots_hdr, comm_arr_list,
+                                    comm_exp_hdr,
+                                    eval_arr_list, eval_plots_hdr,eval_stats_class_array,eval_stats_class_hdr, f'{args.logdir}/running_experiment.xlsx')
+
+            if args.powerbi:
+                df_to_excel(tr_ar_list, tr_plots_hdr, comm_arr_list,
+                                    comm_exp_hdr,
+                                    eval_arr_list, eval_plots_hdr,eval_stats_class_array,eval_stats_class_hdr,f'{args.logdir}/running_experiment.xlsx')
+            #running_experiment_header = ['Epoch', 'Epochs', 'Batch', 'Max batches', 'GPU usage']
+
             # #############
             # Save progress -> changed on version 0.3.11F to save every eval epoch
             # #############
@@ -907,21 +961,28 @@ def run(args, data_config, hyp_config, ver, clearml=None, evolve=False):
                         task.logger.report_scalar(title="Checkpoint", series="Fitness", iteration=epoch,
                                                   value=curr_fitness)
                     # img writer - evaluation
-                    eval_epoch_array = np.concatenate((eval_epoch_array, np.array([epoch])))
+                    eval_epoch_array2 = np.concatenate((eval_epoch_array2, np.array([epoch])))
                     precision_array = np.concatenate((precision_array, np.array([precision.mean()])))
                     recall_array = np.concatenate((recall_array, np.array([recall.mean()])))
                     m_ap_array = np.concatenate((m_ap_array, np.array([AP.mean()])))
                     f1_array = np.concatenate((f1_array, np.array([f1.mean()])))
                     img_writer_evaluation(precision_array, recall_array, m_ap_array, f1_array,
-                                          curr_fitness_array, train_fitness_array, eval_epoch_array,
+                                          curr_fitness_array, train_fitness_array, eval_epoch_array2,
                                           logs + '/' + model_name, logger)
 
-                    eval_array_list = [eval_epoch_array.tolist(), precision_array.tolist(), recall_array.tolist(),
-                                       m_ap_array.tolist(), f1_array.tolist()
+                    eval_arr_list = [eval_epoch_array2.tolist(), precision_array.tolist(), recall_array.tolist(),
+                                       m_ap_array.tolist(), f1_array.tolist(),curr_fitness_array.tolist(),train_fitness_array.tolist()
                                        ]
-                    df_to_excel(eval_array_list, evaluation_plots_header, f'{logs}/{model_name}_evaluation_plots.xlsx')
+                    df_to_excel(tr_ar_list, tr_plots_hdr, comm_arr_list,
+                                    comm_exp_hdr,
+                                    eval_arr_list, eval_plots_hdr,eval_stats_class_array,eval_stats_class_hdr,f'{logs}/{model_name}_experiment_plots.xlsx')
 
-                    if curr_fitness > best_fitness and epoch:
+                    if args.powerbi:
+                        df_to_excel(tr_ar_list, tr_plots_hdr, comm_arr_list,
+                                    comm_exp_hdr,
+                                    eval_arr_list, eval_plots_hdr,eval_stats_class_array,eval_stats_class_hdr,
+                                    f'{args.logdir}/running_experiment.xlsx')
+                    if curr_fitness > best_fitness:
                         best_fitness = curr_fitness
                         checkpoint_path = f"{ckpt_logs}/{model_name}_ckpt_best.pth"
                         print(f"- ⭐ - Saving best checkpoint to: '{checkpoint_path}'  ----")
@@ -964,30 +1025,38 @@ def run(args, data_config, hyp_config, ver, clearml=None, evolve=False):
                         # print('AP',AP)
                         # print(class_names)
                         csv_writer("", f"{logs}/{model_name}_eval_stats.csv", 'w')
-                        eval_stats_class_array = np.array([])
-                        eval_stats_ap_array = np.array([])
+                        eval_stats_class_array = []
+                        eval_stats_ap_array = []
 
                         for i, c in enumerate(ap_class):
                             data = [c,  # Class index
                                     class_names[i],  # Class name
                                     "%.5f" % AP[i],  # Class AP
                                     ]
-                            eval_stats_class_array = np.concatenate(
-                                (eval_stats_class_array, np.array([class_names[i]])))
+                            #eval_stats_class_array = np.concatenate(
+                            #    (eval_stats_class_array, np.array([data])))
+                            eval_stats_class_array.append(data)
                             eval_stats_ap_array = np.concatenate((eval_stats_ap_array, np.array([AP[i]])))
                             if logger is not None:
                                 logger.scalar_summary(f"validation/class/{class_names[i]}", round(float(AP[i]), 5),
                                                       epoch)
                             csv_writer(data, f"{logs}/{model_name}_eval_stats.csv", 'a')
 
-                        # Write mAP value as last line
-                        data = ["--",  #
-                                'mAP',  #
-                                str(round(AP.mean(), 5)),
-                                ]
-                        csv_writer(data, f"{logs}/{model_name}_eval_stats.csv", 'a')
-                        img_writer_eval_stats(eval_stats_class_array, eval_stats_ap_array,
-                                              f"{imgs_logs}/{model_name}_best")
+                        df_to_excel(tr_ar_list, tr_plots_hdr, comm_arr_list,
+                                    comm_exp_hdr,
+                                    eval_arr_list, eval_plots_hdr,eval_stats_class_array,eval_stats_class_hdr,
+                                    f'{logs}/{model_name}_experiment_plots.xlsx')
+
+                        if args.powerbi:
+                            df_to_excel(tr_ar_list, tr_plots_hdr, comm_arr_list,
+                                    comm_exp_hdr,
+                                    eval_arr_list, eval_plots_hdr,eval_stats_class_array,eval_stats_class_hdr,
+                                        f'{args.logdir}/running_experiment.xlsx')
+
+                        # Plot polar chart
+                        #if args.draw:
+                        #    img_polar_chart(eval_stats_class_array, logs,class_names)
+
                         # ############
                         # ClearML csv reporter logger - V0.3.8
                         # ############
@@ -1059,7 +1128,7 @@ def run(args, data_config, hyp_config, ver, clearml=None, evolve=False):
 
 
 if __name__ == "__main__":
-    ver = "1.3.0"
+    ver = "1.3.1"
     warnings.filterwarnings('ignore', category=UserWarning, append=True)
     # Check folders
     check_folders()
@@ -1101,6 +1170,8 @@ if __name__ == "__main__":
                         help="Directory for training log files (e.g. for TensorBoard)")
     parser.add_argument("-tb", "--tensorboard", type=bool, default=True,
                         help="Flag if tensorboard logger should be used [Default=True]")
+    parser.add_argument("-pb", "--powerbi", type=bool, default=True,
+                        help="Flag if powerbi logger should be used [Default=True]")
     parser.add_argument("--name", type=str, default=None,
                         help="Name for trained model")
     parser.add_argument("--warmup", type=bool, default=True,

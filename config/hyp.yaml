@@ -1,7 +1,7 @@
 # hyperparameters
 # optimizer
 # Use sgd, adam, adamw, rmsprop, adadelta, adamax
-optimizer: sgd
+optimizer: adam
 #sgd method definition
 nesterov: True
 #LR scheduler
